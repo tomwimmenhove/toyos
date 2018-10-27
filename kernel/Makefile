@@ -1,5 +1,3 @@
-#!/bin/bash
-
 CFLAGS = -O2 -I ../common -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -lgcc
 LDFLAGS = -T linker.ld
 CC = gcc

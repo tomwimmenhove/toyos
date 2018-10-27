@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-#include "debug_out.h"
+#include "../common/debug_out.h"
 
 extern void* _data_end;
 uint8_t* last_page;;
