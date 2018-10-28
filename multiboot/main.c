@@ -5,7 +5,8 @@
 #include "sysregs.h"
 #include "gdt.h"
 #include "elf.h"
-#include "debug_out.h"
+#include "jump.h"
+#include "../common/debug_out.h"
 
 extern void* _data_end2;
 
@@ -39,7 +40,7 @@ int has_long_mode()
 
 extern void* _data_end;
 uint8_t* last_page = (uint8_t*) 0x00000000;
-
+// 0x00007E00 - 0x1000;
 void* new_page()
 {
 	last_page += 0x1000;
@@ -122,9 +123,9 @@ void setup_page_tables()
 	return;
 }
 
-uint32_t load_kernel(struct multiboot_tag_module *module)
+uint64_t load_kernel(struct multiboot_tag_module *module)
 {
-	uint32_t entry = 0;
+	uint64_t entry = 0;
 	uint8_t* module_ptr = (uint8_t*) module->mod_start;
 
 	Elf64_Ehdr* hdr = (Elf64_Ehdr*) module->mod_start;
@@ -167,7 +168,7 @@ uint32_t load_kernel(struct multiboot_tag_module *module)
 					putstring("Segment is not page-aligned!\n");
 					die();
 				}
-				if (!ptr)
+				if (!phdr->p_vaddr)
 					break;
 
 				/* Page-align */
@@ -231,7 +232,7 @@ void c_entry(unsigned int magic, unsigned long addr)
 	setup_page_tables();
 
 	addr += 8;
-	uint32_t entry = 0;
+	uint64_t entry = 0;
 	struct multiboot_tag* mb_tag = (struct multiboot_tag *) addr;
 	while (mb_tag->type)
 	{
@@ -327,7 +328,7 @@ void c_entry(unsigned int magic, unsigned long addr)
 
 	putstring("Jumping to Long mode kernel code\n");
 	set_data_segs(0x0010);
-	far_jmp(0x0008, entry);
+	jump_kernel(entry);
 
 	die();
 }

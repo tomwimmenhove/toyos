@@ -28,24 +28,4 @@ static inline void lgdt(struct gdt_ptr* p)
                         : "m" (*p));
 }
 
-static inline void far_jmp(uint16_t cs, uint32_t address)
-{
-	uint32_t d[2] = { address, cs };
-	asm volatile(   "ljmp *(%%eax)"
-			:
-			: "a" (d)
-			: "memory" /* Thanks to geist on #osdev on freenode */);
-}
-
-static inline void set_data_segs(uint16_t ds)
-{
-        asm volatile(   "mov %0, %%ds\n"
-                        "mov %0, %%es\n"
-                        "mov %0, %%fs\n"
-                        "mov %0, %%gs\n"
-                        "mov %0, %%ss\n"
-                        : 
-                        : "r" (ds));
-}
-
 #endif /* GDT_H */

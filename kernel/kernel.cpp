@@ -85,14 +85,11 @@ void map_page(uint64_t virt_addr, uint64_t phys_addr)
 int main()
 {
 	uint64_t phys = 0xb8000;
-
-//	uint64_t virt = 0x123873947000ull;
-	uint64_t virt = 0xffff800000000000;
+	uint64_t virt = 0xffff900000000000;
 
 	map_page(virt, phys);
 
 	volatile unsigned char* p = (unsigned char*) virt;
-
 	for (int i = 0; i < 4096; i++)
 	{
 		p[i] = answer;
@@ -106,8 +103,7 @@ int main()
 
 extern "C" void _start()
 {
-	last_page = (uint8_t*) (((uint64_t) &_data_end) & ~0xfff);
-//	last_page = (uint8_t*) 0x20000000;
+	last_page = (uint8_t*) 0x1000000; // XXX: FIX THIS
 	main();
 }
 

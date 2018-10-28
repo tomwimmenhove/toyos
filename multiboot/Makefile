@@ -10,7 +10,7 @@ all: multiboot.elf
 boot.o: boot.S
 	$(AS) -32 -c boot.S -o boot.o
 
-main.o: main.c multiboot2.h cpuid.h sysregs.h gdt.h elf.h ../common/debug_out.h
+main.o: main.c multiboot2.h cpuid.h sysregs.h gdt.h elf.h jump.h ../common/debug_out.h
 	$(CC) $(CFLAGS) -c main.c
 
 debug_out.o: ../common/debug_out.c ../common/debug_out.h

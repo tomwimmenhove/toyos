@@ -2,9 +2,9 @@ ENTRY(_start)
 
 SECTIONS
 {
-   . = 0x1000000;
+   . = 0xffff800000000000;
    .text : { *(.text) }
-   . = 0x1800000;
+   . = 0xffff800000800000;
    .data : { *(.data) }
    .bss : { *(.bss) }
    . = ALIGN(8); 
