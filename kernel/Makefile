@@ -1,5 +1,5 @@
-CFLAGS = -O2 -I ../common -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -lgcc -mcmodel=large
-LDFLAGS = -T linker.ld
+CFLAGS = -O2 -I ../common -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -lgcc -mcmodel=kernel
+LDFLAGS = -T linker.ld -z max-page-size=4096
 CC = gcc
 CPP = g++
 AS = as
