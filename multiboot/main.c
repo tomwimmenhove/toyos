@@ -11,8 +11,9 @@
 extern void* _stack_top;
 extern void* _data_end;
 
-static uint64_t kernel_stack_top = 0xfffffffff0000000llu;
+static uint64_t kernel_stack_top = 0xfffff00000000000llu;
 static uint64_t alloc_ptr = 0x00008000; /* guaranteed free for use according to https://wiki.osdev.org/Memory_Map_(x86) */
+//static uint64_t alloc_ptr = 0x00001000;
 static uint64_t* pml4;
 
 void die()
@@ -68,7 +69,7 @@ uint32_t new_clean_page()
 
 void map_page(uint64_t virt, uint64_t phys)
 {
-#if 0
+#if 1
 	putstring("Mapping address ");
 	put_hex_long(virt);
 	putstring(" to ");
@@ -134,7 +135,7 @@ void setup_page_tables()
 	map_pages(0x100000, 0x100000, ((((uint32_t) &_data_end) + 0xfff) - 0x1000) & ~0xfff);
 
 	/* Map one page for the kernel stack */
-	map_pages(kernel_stack_top, (uint64_t) (uint32_t) new_page(), 0x1000);
+	map_pages(kernel_stack_top - 0x1000, (uint64_t) (uint32_t) new_page(), 0x1000);
 
 	/* Make page-tables self-referencing */
 	pml4[511] = (uint32_t) pml4 | 0x3;
@@ -229,7 +230,7 @@ uint64_t load_kernel(struct multiboot_tag_module *module)
 	return entry;
 }
 
-void c_entry(unsigned int magic, unsigned long addr)
+void c_entry(unsigned int magic, uint32_t mb_addr)
 {
 	if (magic != MULTIBOOT2_BOOTLOADER_MAGIC)
 	{
@@ -252,7 +253,7 @@ void c_entry(unsigned int magic, unsigned long addr)
 
 	setup_page_tables();
 
-	addr += 8;
+	uint32_t addr = mb_addr + 8;
 	uint64_t entry = 0;
 	struct multiboot_tag* mb_tag = (struct multiboot_tag *) addr;
 	while (mb_tag->type)
@@ -370,7 +371,8 @@ void c_entry(unsigned int magic, unsigned long addr)
 	lgdt(&gdtp);
 
 	putstring("Jumping to Long mode kernel code\n");
-	jump_kernel(kernel_stack_top, entry);
+//	jump_kernel(kernel_stack_top, entry, mb_addr);
+	jump_kernel(entry, kernel_stack_top);
 
 	die();
 }

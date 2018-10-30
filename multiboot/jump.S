@@ -21,7 +21,7 @@ jump64:
 	movq 4(%rsp), %rax
 
 	/* Get our stack pointer */
-	movq 12(%rsp), %rax /* Heh :) */
+	movq 12(%rsp), %rsp /* Heh :) */
 
 	/* Jump to it! */
 	jmp *%rax
