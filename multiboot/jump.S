@@ -20,7 +20,7 @@ jump64:
 	/* Get our kernel entry point in %rax */
 	movq 4(%rsp), %rax
 
-	/* Pointer to the multiboot structure */
+	/* Pointer to the multiboot structure as first argument to kernel entry function */
 	movq 20(%rsp), %rdi
 
 	/* Get our stack pointer */

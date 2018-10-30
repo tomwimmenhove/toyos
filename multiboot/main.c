@@ -13,7 +13,6 @@ extern void* _data_end;
 
 static uint64_t kernel_stack_top = 0xfffff00000000000llu;
 static uint64_t alloc_ptr = 0x00008000; /* guaranteed free for use according to https://wiki.osdev.org/Memory_Map_(x86) */
-//static uint64_t alloc_ptr = 0x00001000;
 static uint64_t* pml4;
 
 void die()
