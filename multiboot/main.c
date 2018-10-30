@@ -8,7 +8,12 @@
 #include "jump.h"
 #include "../common/debug_out.h"
 
-extern void* _data_end2;
+extern void* _stack_top;
+extern void* _data_end;
+
+static uint64_t kernel_stack_top = 0xfffffffff0000000llu;
+static uint64_t alloc_ptr = 0x00008000; /* guaranteed free for use according to https://wiki.osdev.org/Memory_Map_(x86) */
+static uint64_t* pml4;
 
 void die()
 {
@@ -38,13 +43,9 @@ int has_long_mode()
 	return a & (1 << 29);
 }
 
-extern void* _data_end;
-uint32_t alloc_ptr = 0x00001000;
-// 0x00007E00 - 0x1000;
-
-uint32_t new_page()
+uint64_t new_page()
 {
-	uint32_t p = alloc_ptr;
+	uint64_t p = alloc_ptr;
 	alloc_ptr += 0x1000;
 	return p;
 }
@@ -65,10 +66,16 @@ uint32_t new_clean_page()
 	return p;
 }
 
-static uint64_t* pml4;
-
 void map_page(uint64_t virt, uint64_t phys)
 {
+#if 0
+	putstring("Mapping address ");
+	put_hex_long(virt);
+	putstring(" to ");
+	put_hex_long(phys);
+	put_char('\n');
+#endif
+
 	if (virt & 0xfff || phys & 0xfff)
 	{
 		putstring("Trying to map on a non-page boundary.\n");
@@ -123,8 +130,11 @@ void setup_page_tables()
 	pml4 = (uint64_t*) (uint32_t) new_clean_page();
 	cr3_set((uint32_t) pml4);
 
-	/* Identity-map every page from page 1 to _data_end */
-	map_pages(0x1000, 0x1000, ((((uint32_t) &_data_end) + 0xfff) - 0x1000) & ~0xfff);
+	/* Identity-map every page from 1MB to _data_end */
+	map_pages(0x100000, 0x100000, ((((uint32_t) &_data_end) + 0xfff) - 0x1000) & ~0xfff);
+
+	/* Map one page for the kernel stack */
+	map_pages(kernel_stack_top, (uint64_t) (uint32_t) new_page(), 0x1000);
 
 	/* Make page-tables self-referencing */
 	pml4[511] = (uint32_t) pml4 | 0x3;
@@ -136,6 +146,10 @@ uint64_t load_kernel(struct multiboot_tag_module *module)
 {
 	uint64_t entry = 0;
 	uint8_t* module_ptr = (uint8_t*) module->mod_start;
+
+	putstring("Module start at ");
+	put_hex_int(module->mod_start);
+	put_char('\n');
 
 	Elf64_Ehdr* hdr = (Elf64_Ehdr*) module->mod_start;
 
@@ -215,8 +229,6 @@ uint64_t load_kernel(struct multiboot_tag_module *module)
 	return entry;
 }
 
-extern void* _stack_top;
-
 void c_entry(unsigned int magic, unsigned long addr)
 {
 	if (magic != MULTIBOOT2_BOOTLOADER_MAGIC)
@@ -280,6 +292,10 @@ void c_entry(unsigned int magic, unsigned long addr)
 					put_hex_long(entry->addr);
 					putstring(" with length: ");
 					put_hex_long(entry->len);
+					putstring(" of type ");
+					const char *typeNames[] = { "Unknown", "available", "reserved", "ACPI reclaimable", "NVS", "\"bad ram\""};
+
+					putstring(typeNames[entry->type]);
 					put_char('\n');
 
 				}
@@ -316,7 +332,7 @@ void c_entry(unsigned int magic, unsigned long addr)
 
 	/* Setup the GDT */
 	putstring("Setting up the Global Descriptor Table\n");
-	uint64_t test_gdt[] =
+	uint64_t gdt[] =
 	{
 		/* Null descriptor */
 		0,
@@ -348,15 +364,10 @@ void c_entry(unsigned int magic, unsigned long addr)
 
 	struct gdt_ptr gdtp = 
 	{
-		sizeof(test_gdt) - 1,
-		test_gdt
+		sizeof(gdt) - 1,
+		gdt
 	};
 	lgdt(&gdtp);
-
-	uint64_t kernel_stack_top = 0xfffffffff0000000llu;
-
-	putstring("Allocating kernel stack\n");
-	map_pages(kernel_stack_top, (uint64_t) (uint32_t) new_page(), 0x1000);
 
 	putstring("Jumping to Long mode kernel code\n");
 	jump_kernel(kernel_stack_top, entry);

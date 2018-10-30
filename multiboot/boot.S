@@ -21,11 +21,11 @@ multiboot_header_start:
 	.word 1
 	.word 0
 	.long 4*6+8
+	.long 6 # memory map
 	.long 5 # BIOS boot device
 	.long 1 # command line
 	.long 3 # modules
 	.long 9 # ELF symbols
-	.long 6 # memory map
 	.long 10 # APM table
 	.balign 8
 	/* /from satackoverflow */
