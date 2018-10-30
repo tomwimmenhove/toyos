@@ -1,6 +1,9 @@
 #include <stdint.h>
 
-#include "../common/debug_out.h"
+extern "C"
+{
+	#include "../common/debug_out.h"
+}
 
 extern void* _data_end;
 uint8_t* last_page;;
@@ -82,8 +85,12 @@ void map_page(uint64_t virt, uint64_t phys)
 	p1[p1e] = phys | 3;
 }
 
-int main()
+int kmain(uint64_t mb_addr)
 {
+	putstring("Multiboot structure at ");
+	put_hex_long(mb_addr);
+	put_char('\n');
+
 	uint64_t phys = 0xb8000;
 	uint64_t virt = 0xffff900000000000;
 
@@ -101,9 +108,9 @@ int main()
 
 }
 
-extern "C" void _start()
+extern "C" void _start(uint64_t mb_addr)
 {
 	last_page = (uint8_t*) 0x1000000; // XXX: FIX THIS
-	main();
+	kmain(mb_addr);
 }
 

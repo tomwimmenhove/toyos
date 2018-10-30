@@ -69,7 +69,7 @@ uint32_t new_clean_page()
 
 void map_page(uint64_t virt, uint64_t phys)
 {
-#if 1
+#if 0
 	putstring("Mapping address ");
 	put_hex_long(virt);
 	putstring(" to ");
@@ -239,6 +239,10 @@ void c_entry(unsigned int magic, uint32_t mb_addr)
 		die();
 	}
 
+	putstring("Multiboot structure at ");
+	put_hex_int(mb_addr);
+	put_char('\n');
+
 	if (!has_cpuid())
 	{
 		putstring("CPU doesn't support CPUID.\n");
@@ -371,8 +375,7 @@ void c_entry(unsigned int magic, uint32_t mb_addr)
 	lgdt(&gdtp);
 
 	putstring("Jumping to Long mode kernel code\n");
-//	jump_kernel(kernel_stack_top, entry, mb_addr);
-	jump_kernel(entry, kernel_stack_top);
+	jump_kernel(entry, kernel_stack_top, mb_addr);
 
 	die();
 }
