@@ -2,7 +2,6 @@ ENTRY(_start)
 
 SECTIONS
 {
-/*	. = 0xffff800000000000; <<=- Why would this not work? */
 	. = 0xffffffff80000000;
 	.text : { *(.text) }
 

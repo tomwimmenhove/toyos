@@ -89,6 +89,9 @@ int main()
 
 	map_page(virt, phys);
 
+//	*(uint64_t*) (0xfffff00000000000llu - 4096) = 0;
+
+
 	volatile unsigned char* p = (unsigned char*) virt;
 	for (int i = 0; i < 4096; i++)
 	{

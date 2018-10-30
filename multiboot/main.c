@@ -39,12 +39,14 @@ int has_long_mode()
 }
 
 extern void* _data_end;
-uint8_t* last_page = (uint8_t*) 0x00000000;
+uint8_t* last_page = (uint8_t*) 0x00001000;
 // 0x00007E00 - 0x1000;
+
 void* new_page()
 {
+	void* p = last_page;
 	last_page += 0x1000;
-	return last_page;
+	return p;
 }
 
 void clear_page(void* page)
@@ -240,7 +242,7 @@ void c_entry(unsigned int magic, unsigned long addr)
 		{
 			case MULTIBOOT_TAG_TYPE_MODULE:
 			{
-				struct multiboot_tag_module *mb_mod_tag = (struct multiboot_tag_module *) mb_tag;
+				struct multiboot_tag_module *mb_mod_tag = (struct multiboot_tag_module*) mb_tag;
 				(void) mb_mod_tag;
 				putstring("Module tag: Cmdline=");
 				putstring(mb_mod_tag->cmdline);
@@ -256,6 +258,24 @@ void c_entry(unsigned int magic, unsigned long addr)
 
 				entry = load_kernel(mb_mod_tag);
 
+				break;
+			}
+			case MULTIBOOT_TAG_TYPE_MMAP:
+			{
+				struct multiboot_tag_mmap *mp_mmap_tag = (struct multiboot_tag_mmap*) mb_tag;
+
+				for (struct multiboot_mmap_entry *entry = mp_mmap_tag->entries;
+						(uint8_t *) entry < (uint8_t *) mb_tag + mb_tag->size;
+						entry = (multiboot_memory_map_t *) ((unsigned long) entry
+							+ ((struct multiboot_tag_mmap *) mb_tag)->entry_size))
+				{
+					putstring("Memory region ");
+					put_hex_long(entry->addr);
+					putstring(" with length: ");
+					put_hex_long(entry->len);
+					put_char('\n');
+
+				}
 				break;
 			}
 			default:
@@ -326,9 +346,13 @@ void c_entry(unsigned int magic, unsigned long addr)
 	};
 	lgdt(&gdtp);
 
+	uint64_t kernel_stack_top = 0xfffffffff0000000llu;
+
+	putstring("Allocating kernel stack\n");
+	map_pages((kernel_stack_top) >> 12, (uint64_t) (uint32_t) new_page() >> 12, 1);
+
 	putstring("Jumping to Long mode kernel code\n");
-	set_data_segs(0x0010);
-	jump_kernel(entry);
+	jump_kernel(kernel_stack_top, entry);
 
 	die();
 }

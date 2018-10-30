@@ -3,18 +3,11 @@
 .section .multiboot
 .align 4
 multiboot_header_start:
-# multiboot v1
-//	.long 0x1BADB002	# Magic
-//	.long 3			# Flags: bit 0: align, bit 1: provide memory map
-//	.long -(0x1BADB002 + 3)	# CheckSum
-
 # multiboot v2
 	.long 0xe85250d6                						# Magic
 	.long 0                         						# Arch (i386)
         .long multiboot_header_end - multiboot_header_start				# Header length
 	.long -(0xe85250d6 + 0 + (multiboot_header_end - multiboot_header_start))	# Checksum
-
-
 
 
 	/* From stackoverflow */
