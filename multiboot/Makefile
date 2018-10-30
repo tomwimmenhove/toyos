@@ -13,7 +13,7 @@ boot.o: boot.S
 jump.o: jump.S jump.h
 	$(AS) -32 -c jump.S -o jump.o
 
-main.o: main.c multiboot2.h cpuid.h sysregs.h gdt.h elf.h jump.h ../common/debug_out.h
+main.o: main.c ../common/multiboot2.h cpuid.h sysregs.h gdt.h elf.h jump.h ../common/debug_out.h
 	$(CC) $(CFLAGS) -c main.c
 
 debug_out.o: ../common/debug_out.c ../common/debug_out.h

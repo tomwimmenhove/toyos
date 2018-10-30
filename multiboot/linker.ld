@@ -22,5 +22,6 @@ SECTIONS
    . = . + _stack_size;
    _stack_top = .;
 
+   . = ALIGN(0x1000);
    _data_end = .; 
 }

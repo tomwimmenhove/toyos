@@ -1,11 +1,11 @@
 #include <stdint.h>
-#include "multiboot2.h"
 
 #include "cpuid.h"
 #include "sysregs.h"
 #include "gdt.h"
 #include "elf.h"
 #include "jump.h"
+#include "../common/multiboot2.h"
 #include "../common/debug_out.h"
 
 extern void* _stack_top;
@@ -14,6 +14,9 @@ extern void* _data_end;
 static uint64_t kernel_stack_top = 0xfffff00000000000llu;
 static uint64_t alloc_ptr = 0x00008000; /* guaranteed free for use according to https://wiki.osdev.org/Memory_Map_(x86) */
 static uint64_t* pml4;
+
+/* Relocate by copying or map module into virtual address space directly */
+#define RELOCATE
 
 void die()
 {
@@ -54,9 +57,7 @@ void clear_page(void* addr)
 {
 	uint64_t* p = (uint64_t*) addr;
 	for (int i = 0; i < 512; i++)
-	{
 		p[i] = 0;
-	}
 }
 
 uint32_t new_clean_page()
@@ -82,45 +83,42 @@ void map_page(uint64_t virt, uint64_t phys)
 		die();
 	}
 
-	uint16_t pt_idx = (virt >> 12) & 0x1ff;
-	uint16_t pd_idx = (virt >> 21) & 0x1ff;
-	uint16_t pdp_idx = (virt >> 30) & 0x1ff;
-	uint16_t pml4_idx = (virt >> 39) & 0x1ff;
+	uint16_t pte = (virt >> 12) & 0x1ff;
+	uint16_t pde = (virt >> 21) & 0x1ff;
+	uint16_t pdpe = (virt >> 30) & 0x1ff;
+	uint16_t pml4e = (virt >> 39) & 0x1ff;
 
 	/* Check for level 4 entry in PML4 table */
-	if (!(pml4[pml4_idx] & 1))
-		pml4[pml4_idx] = (uint32_t) new_clean_page() | 3;
+	if (!(pml4[pml4e] & 1))
+		pml4[pml4e] = (uint32_t) new_clean_page() | 3;
 
 	/* Check for level 3 entry in PDP table */
-	uint64_t* pdp = (uint64_t*) (uint32_t) (pml4[pml4_idx] & ~0xfff);
-	if (!(pdp[pdp_idx] & 1))
-		pdp[pdp_idx] = (uint32_t) new_clean_page() | 3;
+	uint64_t* pdp = (uint64_t*) (uint32_t) (pml4[pml4e] & ~0xfff);
+	if (!(pdp[pdpe] & 1))
+		pdp[pdpe] = (uint32_t) new_clean_page() | 3;
 
 	/* Check for level 2 entry in PD table */
-	uint64_t* pd = (uint64_t*) (uint32_t) (pdp[pdp_idx] & ~0xfff);
-	if (!(pd[pd_idx] & 1))
-		pd[pd_idx] = (uint32_t) new_clean_page() | 3;
+	uint64_t* pd = (uint64_t*) (uint32_t) (pdp[pdpe] & ~0xfff);
+	if (!(pd[pde] & 1))
+		pd[pde] = (uint32_t) new_clean_page() | 3;
 
 	/* Get the level 1 entry in the PT table */
-	uint64_t* pt = (uint64_t*) (uint32_t) (pd[pd_idx] & ~0xfff);
+	uint64_t* pt = (uint64_t*) (uint32_t) (pd[pde] & ~0xfff);
 
 	/* Set the entry in the page table */
-	pt[pt_idx] = phys | 3;
+	pt[pte] = phys | 3;
 }
 
 void map_pages(uint64_t virt, uint64_t phys, uint64_t size)
 {
+	if (size & 0xfff)
+	{
+		putstring("Trying to map a non-page-aligned size.\n");
+		die();
+	}
 	for (uint64_t i = 0; i < size; i += 0x1000, virt += 0x1000, phys += 0x1000)
 	{
 		map_page(virt, phys);
-	}
-}
-
-void alloc_pages(uint64_t virt, uint64_t size)
-{
-	for (uint64_t i = 0; i < size; i += 0x1000, virt += 0x1000)
-	{
-		map_page(virt++, (uint32_t) new_page());
 	}
 }
 
@@ -131,13 +129,14 @@ void setup_page_tables()
 	cr3_set((uint32_t) pml4);
 
 	/* Identity-map every page from 1MB to _data_end */
-	map_pages(0x100000, 0x100000, ((((uint32_t) &_data_end) + 0xfff) - 0x1000) & ~0xfff);
+	map_pages(0x100000, 0x100000, ((uint32_t) &_data_end) - 0x100000);
 
 	/* Map one page for the kernel stack */
 	map_pages(kernel_stack_top - 0x1000, (uint64_t) (uint32_t) new_page(), 0x1000);
 
 	/* Make page-tables self-referencing */
-	pml4[511] = (uint32_t) pml4 | 0x3;
+//	pml4[511] = (uint32_t) pml4 | 0x3;
+	pml4[510] = (uint32_t) pml4 | 0x3;
 
 	return;
 }
@@ -164,7 +163,11 @@ uint64_t load_kernel(struct multiboot_tag_module *module)
 	put_hex_long(hdr->e_entry);
 	put_char('\n');
 
-	uint8_t* space = (uint8_t*) &_data_end;
+#ifdef RELOCATE
+	// Multiboot stuff probably resides here
+	//uint8_t* space = (uint8_t*) &_data_end;
+	uint8_t* space = (uint8_t*) 0x200000; // XXX: This ok?
+#endif
 
 	for (int i = 0; i < hdr->e_phnum; i++)
 	{
@@ -174,6 +177,8 @@ uint64_t load_kernel(struct multiboot_tag_module *module)
 		put_hex_long(phdr->p_vaddr);
 		putstring(" of size ");
 		put_hex_long(phdr->p_memsz);
+		putstring(" at file offset ");
+		put_hex_int((uint32_t) &module_ptr[phdr->p_offset]);
 		putstring(": ");
 
 		switch(phdr->p_type)
@@ -185,14 +190,15 @@ uint64_t load_kernel(struct multiboot_tag_module *module)
 			{
 				putstring("Loadable segment\n");
 
-				uint8_t* ptr = (uint8_t*) (uint32_t) phdr->p_vaddr;
-				if ((uint32_t) ptr & 0xfff)
+				if (phdr->p_vaddr & 0xfff)
 				{
 					putstring("Segment is not page-aligned!\n");
 					die();
 				}
 				if (!phdr->p_vaddr)
 					break;
+#ifdef RELOCATE
+				putstring("Relocating...\n");
 
 				/* Page-align */
 				space = (uint8_t*) ((((uint32_t) space) + 0xfff) & ~0xfff);
@@ -206,6 +212,18 @@ uint64_t load_kernel(struct multiboot_tag_module *module)
 				/* Padding */
 				for (uint64_t i = phdr->p_filesz; i < phdr->p_memsz; i++)
 					*space++ = 0;
+#else
+				if ((uint32_t) &module_ptr[phdr->p_offset] & 0xfff)
+				{
+					putstring("File-offset is not page-aligned!\n");
+					die();
+				}
+
+				/* Map directly into place. From the looks of the kernel images, we don't even need to pad? */
+				map_pages(phdr->p_vaddr, (uint64_t) (uint32_t) &module_ptr[phdr->p_offset],
+						(phdr->p_memsz + 4095) & ~0xfff);
+				// XXX: Not sure how to deal with .bss etc... Using relocation for now.
+#endif
 
 				break;
 			}
@@ -256,7 +274,8 @@ void c_entry(unsigned int magic, uint32_t mb_addr)
 
 	setup_page_tables();
 
-	uint32_t addr = mb_addr + 8;
+	mb_addr += 8;
+	uint32_t addr = mb_addr;
 	uint64_t entry = 0;
 	struct multiboot_tag* mb_tag = (struct multiboot_tag *) addr;
 	while (mb_tag->type)
