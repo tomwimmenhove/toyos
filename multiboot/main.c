@@ -39,30 +39,29 @@ int has_long_mode()
 }
 
 extern void* _data_end;
-uint8_t* last_page = (uint8_t*) 0x00001000;
+uint32_t alloc_ptr = 0x00001000;
 // 0x00007E00 - 0x1000;
 
-void* new_page()
+uint32_t new_page()
 {
-	void* p = last_page;
-	last_page += 0x1000;
+	uint32_t p = alloc_ptr;
+	alloc_ptr += 0x1000;
 	return p;
 }
 
-void clear_page(void* page)
+void clear_page(void* addr)
 {
-	uint64_t* p = (uint64_t*) page;
-
+	uint64_t* p = (uint64_t*) addr;
 	for (int i = 0; i < 512; i++)
 	{
 		p[i] = 0;
 	}
 }
 
-void* new_clean_page()
+uint32_t new_clean_page()
 {
-	void* p = new_page();
-	clear_page(p);
+	uint32_t p = new_page();
+	clear_page((void*) p);
 	return p;
 }
 
@@ -70,10 +69,16 @@ static uint64_t* pml4;
 
 void map_page(uint64_t virt, uint64_t phys)
 {
-	uint16_t pt_idx = virt & 0x1ff;
-	uint16_t pd_idx = (virt >> 9) & 0x1ff;
-	uint16_t pdp_idx = (virt >> 18) & 0x1ff;
-	uint16_t pml4_idx = (virt >> 27) & 0x1ff;
+	if (virt & 0xfff || phys & 0xfff)
+	{
+		putstring("Trying to map on a non-page boundary.\n");
+		die();
+	}
+
+	uint16_t pt_idx = (virt >> 12) & 0x1ff;
+	uint16_t pd_idx = (virt >> 21) & 0x1ff;
+	uint16_t pdp_idx = (virt >> 30) & 0x1ff;
+	uint16_t pml4_idx = (virt >> 39) & 0x1ff;
 
 	/* Check for level 4 entry in PML4 table */
 	if (!(pml4[pml4_idx] & 1))
@@ -93,31 +98,33 @@ void map_page(uint64_t virt, uint64_t phys)
 	uint64_t* pt = (uint64_t*) (uint32_t) (pd[pd_idx] & ~0xfff);
 
 	/* Set the entry in the page table */
-	pt[pt_idx] = (phys << 12) | 3;
+	pt[pt_idx] = phys | 3;
 }
 
-void map_pages(uint64_t virt, uint64_t phys, uint64_t pages)
+void map_pages(uint64_t virt, uint64_t phys, uint64_t size)
 {
-	while (pages--)
-		map_page(virt++, phys++);
+	for (uint64_t i = 0; i < size; i += 0x1000, virt += 0x1000, phys += 0x1000)
+	{
+		map_page(virt, phys);
+	}
 }
 
-void alloc_pages(uint64_t virt, uint64_t pages)
+void alloc_pages(uint64_t virt, uint64_t size)
 {
-	while (pages--)
+	for (uint64_t i = 0; i < size; i += 0x1000, virt += 0x1000)
+	{
 		map_page(virt++, (uint32_t) new_page());
+	}
 }
 
 void setup_page_tables()
 {
 	putstring("Setting up page tables: Identity map lower 2MB\n");
-	pml4 = (uint64_t*) new_page();
+	pml4 = (uint64_t*) (uint32_t) new_clean_page();
 	cr3_set((uint32_t) pml4);
 
-	clear_page(pml4);
-
 	/* Identity-map every page from page 1 to _data_end */
-	map_pages(1, 1, ((((uint32_t) &_data_end) + 0xfff) >> 12) - 1);
+	map_pages(0x1000, 0x1000, ((((uint32_t) &_data_end) + 0xfff) - 0x1000) & ~0xfff);
 
 	/* Make page-tables self-referencing */
 	pml4[511] = (uint32_t) pml4 | 0x3;
@@ -177,7 +184,7 @@ uint64_t load_kernel(struct multiboot_tag_module *module)
 				space = (uint8_t*) ((((uint32_t) space) + 0xfff) & ~0xfff);
 
 				/* Map the kernel code/data into virtual address space (for when paging becomes enabled. */
-				map_pages(phdr->p_vaddr >> 12, ((uint32_t) space) >> 12, (phdr->p_memsz + 4095) >> 12);
+				map_pages(phdr->p_vaddr, (uint32_t) space, (phdr->p_memsz + 4095) & ~0xfff);
 
 				/* Copy the segment */
 				for (uint64_t i = 0; i < phdr->p_filesz; i++)
@@ -349,7 +356,7 @@ void c_entry(unsigned int magic, unsigned long addr)
 	uint64_t kernel_stack_top = 0xfffffffff0000000llu;
 
 	putstring("Allocating kernel stack\n");
-	map_pages((kernel_stack_top) >> 12, (uint64_t) (uint32_t) new_page() >> 12, 1);
+	map_pages(kernel_stack_top, (uint64_t) (uint32_t) new_page(), 0x1000);
 
 	putstring("Jumping to Long mode kernel code\n");
 	jump_kernel(kernel_stack_top, entry);

@@ -46,20 +46,20 @@ extern "C" void __cxa_pure_virtual()
 
 unsigned char answer = 65;
 
-void map_page(uint64_t virt_addr, uint64_t phys_addr)
+void map_page(uint64_t virt, uint64_t phys)
 {
-	virt_addr &= ~0xfff;
-	phys_addr &= ~0xfff;
+	virt &= ~0xfff;
+	phys &= ~0xfff;
 
-	uint64_t p4e = (virt_addr >> 39) & 511;
-	uint64_t p3e = (virt_addr >> 30) & 511;
-	uint64_t p2e = (virt_addr >> 21) & 511;
-	uint64_t p1e = (virt_addr >> 12) & 511;
+	uint64_t p4e = (virt >> 39) & 511;
+	uint64_t p3e = (virt >> 30) & 511;
+	uint64_t p2e = (virt >> 21) & 511;
+	uint64_t p1e = (virt >> 12) & 511;
 
 	uint64_t* p4 = (uint64_t*) (0xfffffffffffff000llu);
-	uint64_t* p3 = (uint64_t*) (0xffffffffffe00000llu | ((virt_addr >> 27) & 0x00000000001ff000ull) );
-	uint64_t* p2 = (uint64_t*) (0xffffffffc0000000llu | ((virt_addr >> 18) & 0x000000003ffff000ull) );
-	uint64_t* p1 = (uint64_t*) (0xffffff8000000000llu | ((virt_addr >>  9) & 0x0000007ffffff000ull) );
+	uint64_t* p3 = (uint64_t*) (0xffffffffffe00000llu | ((virt >> 27) & 0x00000000001ff000ull) );
+	uint64_t* p2 = (uint64_t*) (0xffffffffc0000000llu | ((virt >> 18) & 0x000000003ffff000ull) );
+	uint64_t* p1 = (uint64_t*) (0xffffff8000000000llu | ((virt >>  9) & 0x0000007ffffff000ull) );
 
 	if (!(p4[p4e] & 1))
 	{
@@ -79,7 +79,7 @@ void map_page(uint64_t virt_addr, uint64_t phys_addr)
 		clear_page((void*) p1);
 	}
 
-	p1[p1e] = phys_addr | 3;
+	p1[p1e] = phys | 3;
 }
 
 int main()
