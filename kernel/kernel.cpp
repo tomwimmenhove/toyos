@@ -147,6 +147,46 @@ void clean_page_tables()
 	cr3_set(cr3_get());
 }
 
+void parse_memmap(kernel_boot_info* kbi, struct multiboot_tag_mmap* mb_mmap_tag)
+{
+	for (struct multiboot_mmap_entry *entry = mb_mmap_tag->entries;
+			(uint8_t *) entry < (uint8_t *) mb_mmap_tag + mb_mmap_tag->size;
+			entry = (multiboot_memory_map_t *) ((unsigned long) entry
+				+ ((struct multiboot_tag_mmap *) mb_mmap_tag)->entry_size))
+	{
+		putstring("Memory region ");
+		put_hex_long(entry->addr);
+		putstring(" with length: ");
+		put_hex_long(entry->len);
+		putstring(" of type ");
+		const char *typeNames[] = { "Unknown", "available", "reserved", "ACPI reclaimable", "NVS", "\"bad ram\""};
+
+		putstring(typeNames[entry->type]);
+		put_char('\n');
+
+	}
+
+	(void)kbi;
+}
+
+void parse_kbi(kernel_boot_info* kbi)
+{
+	auto mb_tag_addr = kbi->mb_tag;
+	auto mb_tag = (struct multiboot_tag *) mb_tag_addr;
+	while (mb_tag->type)
+	{
+		mb_tag_addr += (mb_tag->size + 7) & ~7;
+		mb_tag = (struct multiboot_tag *) mb_tag_addr;
+
+		if (mb_tag->type == MULTIBOOT_TAG_TYPE_MMAP)
+		{
+			parse_memmap(kbi, (struct multiboot_tag_mmap*) mb_tag);
+			putstring("YUP\n");
+		}
+	}
+	die();
+}
+
 int kmain(kernel_boot_info* kbi)
 {
 	putstring("Kernel info structure at ");
@@ -159,6 +199,8 @@ int kmain(kernel_boot_info* kbi)
 		put_hex_int(kbi->magic); put_char('\n');
 		die();
 	}
+
+	parse_kbi(kbi);
 
 	clean_page_tables();
 

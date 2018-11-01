@@ -301,28 +301,6 @@ void c_entry(unsigned int magic, uint32_t mb_addr)
 
 				break;
 			}
-			case MULTIBOOT_TAG_TYPE_MMAP:
-			{
-				struct multiboot_tag_mmap *mp_mmap_tag = (struct multiboot_tag_mmap*) mb_tag;
-
-				for (struct multiboot_mmap_entry *entry = mp_mmap_tag->entries;
-						(uint8_t *) entry < (uint8_t *) mb_tag + mb_tag->size;
-						entry = (multiboot_memory_map_t *) ((unsigned long) entry
-							+ ((struct multiboot_tag_mmap *) mb_tag)->entry_size))
-				{
-					putstring("Memory region ");
-					put_hex_long(entry->addr);
-					putstring(" with length: ");
-					put_hex_long(entry->len);
-					putstring(" of type ");
-					const char *typeNames[] = { "Unknown", "available", "reserved", "ACPI reclaimable", "NVS", "\"bad ram\""};
-
-					putstring(typeNames[entry->type]);
-					put_char('\n');
-
-				}
-				break;
-			}
 			default:
 				break;
 		}
