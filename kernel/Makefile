@@ -1,4 +1,5 @@
 CFLAGS = -O2 -I ../common -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -lgcc -mcmodel=kernel
+CPPFLAGS = -O2 -I ../common -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -lgcc -std=c++17 -mcmodel=kernel
 LDFLAGS = -T linker.ld -z max-page-size=4096
 CC = gcc
 CPP = g++
@@ -8,7 +9,7 @@ LD = ld
 all: kernel.elf
 
 kernel.o: kernel.cpp ../common/debug_out.h
-	$(CPP) $(CFLAGS) -c kernel.cpp
+	$(CPP) $(CPPFLAGS) -c kernel.cpp
 
 debug_out.o: ../common/debug_out.c ../common/debug_out.h
 	$(CC) $(CFLAGS) -c ../common/debug_out.c

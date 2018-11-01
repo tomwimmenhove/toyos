@@ -7,12 +7,12 @@
 #include "jump.h"
 #include "../common/multiboot2.h"
 #include "../common/debug_out.h"
+#include "../common/config.h"
 
 extern void* _stack_top;
 extern void* _data_end;
 
-static uint64_t kernel_stack_top = 0xfffff00000000000llu;
-static uint64_t alloc_ptr = 0x00008000; /* guaranteed free for use according to https://wiki.osdev.org/Memory_Map_(x86) */
+static uint64_t alloc_ptr = ALLOC_START;
 static uint64_t* pml4;
 
 /* Relocate by copying or map module into virtual address space directly */
@@ -128,15 +128,14 @@ void setup_page_tables()
 	pml4 = (uint64_t*) (uint32_t) new_clean_page();
 	cr3_set((uint32_t) pml4);
 
-	/* Identity-map every page from 1MB to _data_end */
-	map_pages(0x100000, 0x100000, ((uint32_t) &_data_end) - 0x100000);
+	/* Identity-map every page from ALLOC_START to _data_end */
+	map_pages(ALLOC_START, ALLOC_START, ((uint32_t) &_data_end) - ALLOC_START);
 
 	/* Map one page for the kernel stack */
-	map_pages(kernel_stack_top - 0x1000, (uint64_t) (uint32_t) new_page(), 0x1000);
+	map_pages(KERNEL_STACK_TOP - 0x1000, (uint64_t) (uint32_t) new_page(), 0x1000);
 
 	/* Make page-tables self-referencing */
-//	pml4[511] = (uint32_t) pml4 | 0x3;
-	pml4[510] = (uint32_t) pml4 | 0x3;
+	pml4[PG_PML4E] = (uint32_t) pml4 | 0x3;
 
 	return;
 }
@@ -393,7 +392,8 @@ void c_entry(unsigned int magic, uint32_t mb_addr)
 	lgdt(&gdtp);
 
 	putstring("Jumping to Long mode kernel code\n");
-	jump_kernel(entry, kernel_stack_top, mb_addr);
+	kernel_boot_info kbi = { KBI_MAGIC, ALLOC_START, (uint64_t) (uint32_t) &_data_end, mb_addr };
+	jump_kernel(entry, KERNEL_STACK_TOP, (uint64_t) (uint32_t) &kbi);
 
 	die();
 }
