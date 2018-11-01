@@ -3,6 +3,7 @@ ENTRY(_start)
 SECTIONS
 {
 	. = 0xffffffff80000000;
+	_code_start = .;
 	.text : { *(.text) }
 
 	. = ALIGN(8); 

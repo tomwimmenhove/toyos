@@ -163,9 +163,7 @@ uint64_t load_kernel(struct multiboot_tag_module *module)
 	put_char('\n');
 
 #ifdef RELOCATE
-	// Multiboot stuff probably resides here
-	//uint8_t* space = (uint8_t*) &_data_end;
-	uint8_t* space = (uint8_t*) 0x200000; // XXX: This ok?
+	uint8_t* space = (uint8_t*) KERNEL_ALLOC_START;
 #endif
 
 	for (int i = 0; i < hdr->e_phnum; i++)
