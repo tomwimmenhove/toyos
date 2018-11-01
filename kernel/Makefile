@@ -1,5 +1,5 @@
 CFLAGS = -O2 -I ../common -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -lgcc -mcmodel=kernel
-CPPFLAGS = -O2 -I ../common -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -lgcc -std=c++17 -mcmodel=kernel
+CPPFLAGS = -O2 -I ../common -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -lgcc -fno-exceptions -fno-rtti -std=c++17 -mcmodel=kernel
 LDFLAGS = -T linker.ld -z max-page-size=4096
 CC = gcc
 CPP = g++

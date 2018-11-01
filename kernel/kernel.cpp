@@ -35,19 +35,49 @@ uint64_t get_phys(uint64_t virt)
 	return (pt[pte] & ~0xfff) | (virt & 0xfff);
 }
 
+class frame_alloc_iface
+{
+public:
+	uint64_t virtual page() = 0;
+};
+
+class new_page_dumb : public frame_alloc_iface
+{
+public:
+	new_page_dumb(kernel_boot_info* kbi, uint64_t alloc_ptr_start, uint64_t alloc_ptr_end)
+		: kbi(kbi), alloc_ptr(alloc_ptr_start), alloc_ptr_end(alloc_ptr_end)
+	{ }
+
+	uint64_t page() override
+	{
+		uint64_t p = alloc_ptr;
+		while ((p >= kbi->alloc_first && p < kbi->alloc_end) ||
+		       (p >= get_phys((uint64_t) &_code_start) && p <= get_phys((uint64_t) &_data_end - 0x1000)))
+			p += 0x1000;
+
+		alloc_ptr = p + 0x1000;
+
+		if (p >= alloc_ptr_end)
+			return 0;
+
+		return p;
+	}
+
+private:
+	kernel_boot_info* kbi;
+	uint64_t alloc_ptr;
+	uint64_t alloc_ptr_end;
+};
+
 uint64_t new_page()
 {
 	uint64_t p = alloc_ptr;
-	alloc_ptr += 0x1000;
-	while  ( 	(p >= kbi->alloc_first && p < kbi->alloc_end) ||
-			(p >= get_phys((uint64_t) &_code_start) && p <= get_phys((uint64_t) &_data_end - 0x1000)))
-
-	{
-		alloc_ptr += 0x1000;
+	while  (	(p >= kbi->alloc_first && p < kbi->alloc_end) ||
+	       		(p >= get_phys((uint64_t) &_code_start) && p <= get_phys((uint64_t) &_data_end - 0x1000)))
 		p += 0x1000;
-	}
 
-	// XXX: Dude!
+	alloc_ptr = p + 0x1000;
+
 	return p;
 }
 
@@ -84,7 +114,7 @@ extern "C" void __cxa_pure_virtual()
 
 unsigned char answer = 65;
 
-void map_page(uint64_t virt, uint64_t phys)
+void map_page(uint64_t virt, uint64_t phys, frame_alloc_iface* fai)
 {
 	virt &= ~0xfff;
 	phys &= ~0xfff;
@@ -94,95 +124,41 @@ void map_page(uint64_t virt, uint64_t phys)
 	uint64_t pde = (virt >> 21) & 511;
 	uint64_t pte = (virt >> 12) & 511;
 
-	uint64_t* pml4 = (uint64_t*) (PG_PML4);
-	uint64_t* pdp = (uint64_t*) (PG_PDP | ((virt >> 27) & 0x00000000001ff000ull) );
-	uint64_t* pd = (uint64_t*) (PG_PD | ((virt >> 18) & 0x000000003ffff000ull) );
-	uint64_t* pt = (uint64_t*) (PG_PT | ((virt >>  9) & 0x0000007ffffff000ull) );
+	volatile uint64_t* pml4 = (uint64_t*) (PG_PML4);
+	volatile uint64_t* pdp = (uint64_t*) (PG_PDP | ((virt >> 27) & 0x00000000001ff000ull) );
+	volatile uint64_t* pd = (uint64_t*) (PG_PD | ((virt >> 18) & 0x000000003ffff000ull) );
+	volatile uint64_t* pt = (uint64_t*) (PG_PT | ((virt >>  9) & 0x0000007ffffff000ull) );
 
 	if (!(pml4[pml4e] & 1))
 	{
-		pml4[pml4e] = (uint64_t) new_page() | 3;
+		pml4[pml4e] = (uint64_t) fai->page() | 3;
 		clear_page((void*) pdp);
 	}
 
 	if (!(pdp[pdpe] & 1))
 	{
-		pdp[pdpe] = (uint64_t) new_page() | 3;
+		pdp[pdpe] = (uint64_t) fai->page() | 3;
 		clear_page((void*) pd);
 	}
 
 	if (!(pd[pde] & 1))
 	{
-		pd[pde] = (uint64_t) new_page() | 3;
+		pd[pde] = (uint64_t) fai->page() | 3;
 		clear_page((void*) pt);
 	}
 
 	pt[pte] = phys | 3;
 }
 
-void map_pages(uint64_t virt, uint64_t phys, uint64_t size)
+void unmap_page(uint64_t virt)
 {
-	if (size & 0xfff)
-	{
-		putstring("Trying to map a non-page-aligned size.\n");
-		die();
-	}
-	for (uint64_t i = 0; i < size; i += 0x1000, virt += 0x1000, phys += 0x1000)
-	{
-		map_page(virt, phys);
-	}
-}
+	virt &= ~0xfff;
+	uint64_t pte = (virt >> 12) & 511;
+	volatile uint64_t* pt = (uint64_t*) (PG_PT | ((virt >>  9) & 0x0000007ffffff000ull) );
 
+	pt[pte] = 0;
 
-void clean_page_tables()
-{
-	uint64_t* pml4 = (uint64_t*) PG_PML4;
-	for (int i = 0; i < 0x200; i++)
-	{
-		if (pml4[i] & 1)
-		{
-			uint64_t* pdp = (uint64_t*) (pml4[i] & ~0xfff);
-			for (int j = 0; j < 0x200; j++)
-			{
-				if (pdp[j] & 1)
-				{
-					uint64_t* pd = (uint64_t*) (pdp[j] & ~0xfff);
-					for (int k = 0; k < 0x200; k++)
-					{
-						if (pd[k] & 1)
-						{
-							uint64_t* pt = (uint64_t*) (pd[k] & ~0xfff);
-							for (int l = 0; l < 0x200; l++)
-							{
-								if (pt[l] & 1)
-								{
-									uint64_t virt =
-										((uint64_t) i) << 39 |
-										((uint64_t) j) << 30 |
-										((uint64_t) k) << 21 |
-										((uint64_t) l) << 12;
-									if (i >= 0x100)
-										virt |= 0xffff000000000000;
-									putstring("Virt ");
-									put_hex_long(virt);
-									putstring(" is mapped to to ");
-									put_hex_long(pt[l] & ~ 0xfff);
-									put_char('\n');
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	/* We can simply unmap everything in the lower half */
-	for (int i = 0; i < 0x100; i++)
-		pml4[i] = 0;
-
-	/* Burtally invalidate all TLB cache */
-	cr3_set(cr3_get());
+	asm volatile("invlpg (%0)" ::"r" (virt) : "memory");
 }
 
 inline void *operator new(size_t, void *p)     throw() { return p; }
@@ -190,7 +166,7 @@ inline void *operator new[](size_t, void *p)   throw() { return p; }
 inline void  operator delete  (void *, void *) throw() { };
 inline void  operator delete[](void *, void *) throw() { };
 
-struct bitmap
+struct bitmap : public frame_alloc_iface
 {
 	bitmap(size_t size)
 		: size(size)
@@ -238,6 +214,23 @@ struct bitmap
 		return SIZE_MAX;
 	}
 
+	uint64_t page() override
+	{
+		uint64_t p = find_zero();
+		set(p);
+		return p * 0x1000;
+	}
+
+	uint64_t mem_free()
+	{
+		uint64_t tot = 0;
+		for (size_t i = 0; i < size; i++)
+			if (!at(i))
+				tot += 0x1000;
+
+		return tot;
+	}
+
 private:
 	inline void check_index(size_t p)
 	{
@@ -253,13 +246,82 @@ private:
 	uint8_t data[0];
 };
 
+template<typename T>
+class temp_page
+{
+public:
+	temp_page(uint64_t virt, uint64_t phys, frame_alloc_iface* fai)
+		: virt((T*) virt)
+	{ map_page((uint64_t) virt, phys, fai); }
+
+	~temp_page() { unmap_page((uint64_t) virt); }
+
+	T operator [] (int idx) const { return virt[idx]; }
+	T& operator [] (int idx) { return virt[idx]; }
+
+private:
+	T* virt;
+};
+
+void print_stack_use()
+{
+	putstring("stack usuage: ");
+	put_hex_long(KERNEL_STACK_TOP - (uint64_t) __builtin_frame_address(0));
+	put_char('\n');
+}
+
+void clean_page_tables(bitmap* bm, frame_alloc_iface* fai)
+{
+	/* A place to temporarily map physical pages to */
+	uint64_t tmp_virt = 0xffff8ffffffff000llu;
+
+	volatile uint64_t* pml4 = (uint64_t*) PG_PML4;
+	for (int i = 0; i < 0x200; i++) if (pml4[i] & 1)
+	{
+		temp_page<uint64_t> pdp(tmp_virt, pml4[i] & ~0xfff, fai);
+		for (int j = 0; j < 0x200; j++) if (pdp[j] & 1)
+		{
+			temp_page<uint64_t> pd(tmp_virt + 0x1000, pdp[j] & ~0xfff, fai);
+			for (int k = 0; k < 0x200; k++) if (pd[k] & 1)
+			{
+				temp_page<uint64_t> pt(tmp_virt + 0x2000, pd[k] & ~0xfff, fai);
+				for (int l = 0; l < 0x200; l++) if (pt[l] & 1)
+				{
+					uint64_t virt = ((uint64_t) i) << 39 | ((uint64_t) j) << 30 |
+						((uint64_t) k) << 21 | ((uint64_t) l) << 12;
+					if (i <= 0x100)
+					{
+						/* Mark all pages references by the 'lower half'
+						 * oh physical mem as available */
+						bm->reset(pt[l] >> 12);
+					}
+					else
+					{
+						/* Mark the ones in the 'higher half' as used */
+						virt |= 0xffff000000000000;
+						if (!(virt >= tmp_virt && virt <= tmp_virt + 0x2000) )
+							bm->set(pt[l] >> 12);
+					}
+				}
+			}
+		}
+	}
+
+	/* We can simply unmap everything in the lower half */
+	for (int i = 0; i < 0x100; i++)
+		pml4[i] = 0;
+
+	/* Burtally invalidate all TLB cache */
+	cr3_set(cr3_get());
+}
+
 template<typename T, typename U>
 static inline T mb_next(T entry, U tag)
 {
 	return (T) ((uint64_t) entry + (((U) tag)->entry_size));
 }
 
-void parse_memmap(kernel_boot_info* kbi, struct multiboot_tag_mmap* mb_mmap_tag)
+void bitmap_setup(kernel_boot_info* kbi, struct multiboot_tag_mmap* mb_mmap_tag)
 {
 	struct multiboot_mmap_entry *entry;
 	auto entry_end = (struct multiboot_mmap_entry*) ((uint64_t) mb_mmap_tag + mb_mmap_tag->size);
@@ -295,13 +357,8 @@ void parse_memmap(kernel_boot_info* kbi, struct multiboot_tag_mmap* mb_mmap_tag)
 		}
 	}
 
-	putstring("Top of ram ");
-	put_hex_long(top);
-	put_char('\n');
-	putstring("Total ram ");
-	put_hex_long(total_ram);
-	put_char('\n');
-
+	putstring("Top of ram "); put_hex_long(top); put_char('\n');
+	putstring("Total ram "); put_hex_long(total_ram); put_char('\n');
 
 	if (!largest_region_len)
 	{
@@ -318,51 +375,33 @@ void parse_memmap(kernel_boot_info* kbi, struct multiboot_tag_mmap* mb_mmap_tag)
 	uint64_t bitmap_size = ((top + 0xfff) / 0x1000 + 7) / 8;
 	uint8_t* bitmapd = (uint8_t*) 0xffffffff40000000;
 
-	putstring("Needs a bitmap of ");
-	put_hex_short(bitmap_size);
-	put_char('\n');
+	/* Create our 'dumb' page frame allocator */
+	new_page_dumb npd(kbi, (uint64_t) largest_region_ptr, (uint64_t) end_page);
 
 	/* Lets allocate a bunch, we're just going to start allocating at the largest region and hope it's big enough */
 	uint64_t allocced = 0;
 	uint8_t* p = (uint8_t*) bitmapd;
 	while (allocced < bitmap_size + sizeof(bitmap)) // Don't forget the size of the bitmap struct itself
 	{
-		auto pg = new_page();
-
-		if ((uint8_t*) pg >= end_page)
+		auto pg = npd.page();
+		if ((uint8_t*) pg >= end_page || !pg)
 		{
 			putstring("Ran out of memory for storing physical memory page bitmap\n");
 			die();
 		}
 
-		map_page((uint64_t) p, (uint64_t) pg);
+		map_page((uint64_t) p, (uint64_t) pg, &npd);
 		p += 0x1000;
 		allocced += 0x1000;
 	}
 
-	putstring("writing some test shit\n");
-	for (uint64_t i = 0; i < bitmap_size; i++)
-		bitmapd[i] = i;
-	putstring("reading the test shit\n");
-	for (uint64_t i = 0; i < bitmap_size; i++)
-	{
-		if (bitmapd[i] != (uint8_t) i)
-		{
-			putstring("FAILED!\n");
-			die();
-		}
-	}
-
-	/* Map pages for the bitmap (including the struct itself) into memory */
-//	map_pages((uint64_t) bitmapd, kbi->alloc_end, (bitmap_size + sizeof(bitmap) + 0xfff) & ~0xfff);
-
+	/* Construct the bitmap class at it's fixed address */
 	auto bm = new(reinterpret_cast<void*>(bitmapd)) bitmap(top / 0x1000);
 
+	/* Set all bits */
 	bm->set_range(0, top / 0x1000);
 
-	return;
-
-	/* Iterate over the memory map again, and set all the bits in the bitmap */
+	/* Iterate over the memory map again, and reset available bits. */
 	for (entry = mb_mmap_tag->entries; entry < entry_end; entry = mb_next(entry, mb_mmap_tag))
 	{
 		if (entry->type == MULTIBOOT_MEMORY_AVAILABLE)
@@ -371,14 +410,38 @@ void parse_memmap(kernel_boot_info* kbi, struct multiboot_tag_mmap* mb_mmap_tag)
 			uint64_t end = (entry->addr + entry->len) & ~0xfff;
 
 			if (end > start)
-				for (auto i = start; i < end; i+= 0x1000)
-					bm->reset(i / 0x1000);
+				bm->reset_range(start / 0x1000, end / 0x1000);
 		}
 	}
 
-	bm->reset_range(0, top / 0x1000);
+	/* This will mark the pages that are actually in use */	
+	clean_page_tables(bm, &npd);
 
-	(void)kbi;
+	uint64_t phys = 0xb8000;
+	uint64_t virt = 0xffffffff40000000 - 0x1000;
+
+	uint8_t* ppp = (uint8_t*) 0xffffa00000000000;
+	for (int i = 0; i < 126 * 1024 * 1024; i += 0x1000)
+	{
+		map_page((uint64_t) ppp, bm->page(), bm);
+		ppp += 0x1000;
+	}
+	ppp = (uint8_t*) 0xffffa00000000000;
+	for (int i = 0; i < 10 * 1024 * 1024; i++)
+	{
+		ppp[i] = 0;
+	}
+
+	map_page(virt, phys, bm);
+
+	volatile unsigned char* pp = (unsigned char*) virt;
+	for (int i = 0; i < 4096; i++)
+	{
+		pp[i] = answer;
+	}
+
+	for(;;)asm("hlt");
+	die();
 }
 
 void parse_kbi()
@@ -392,7 +455,7 @@ void parse_kbi()
 
 		if (mb_tag->type == MULTIBOOT_TAG_TYPE_MMAP)
 		{
-			parse_memmap(kbi, (struct multiboot_tag_mmap*) mb_tag);
+			bitmap_setup(kbi, (struct multiboot_tag_mmap*) mb_tag);
 			putstring("YUP\n");
 		}
 	}
@@ -414,8 +477,7 @@ int kmain()
 
 	parse_kbi();
 
-	clean_page_tables();
-
+/*
 	uint64_t phys = 0xb8000;
 	uint64_t virt = 0xffff900000000000;
 
@@ -426,7 +488,7 @@ int kmain()
 	{
 		p[i] = answer;
 	}
-
+*/
 	for (;;)
 		asm("hlt");
 }
