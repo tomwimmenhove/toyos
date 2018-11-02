@@ -14,8 +14,11 @@ kernel.o: kernel.cpp ../common/debug_out.h
 debug_out.o: ../common/debug_out.c ../common/debug_out.h
 	$(CC) $(CFLAGS) -c ../common/debug_out.c
 
-kernel.elf: debug_out.o kernel.o
-	$(LD) $(LDFLAGS) debug_out.o kernel.o -o kernel.elf
+memory.o: memory.cpp memory.h
+	$(CPP) $(CPPFLAGS) -c memory.cpp
+
+kernel.elf: debug_out.o kernel.o memory.o
+	$(LD) $(LDFLAGS) debug_out.o kernel.o memory.o -o kernel.elf
 
 clean:
 	rm -rf *.o kernel.elf
