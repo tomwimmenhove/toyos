@@ -4,11 +4,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-extern "C"
-{
-	#include "../common/debug_out.h"
-}
-
 #include "memory.h"
 
 extern void* _data_end;

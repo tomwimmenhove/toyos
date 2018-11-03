@@ -3,10 +3,10 @@
 
 extern "C"
 {
-	#include "../common/debug_out.h"
 	#include "../common/config.h"
 }
 
+#include "debug.h"
 #include "new.h"
 #include "mb.h"
 #include "memory.h"
@@ -15,30 +15,16 @@ extern "C"
 extern void* _data_end;
 extern void* _code_start;
 
-void die()
-{
-	asm volatile("movl $0, %eax");
-	asm volatile("out %eax, $0xf4");
-	asm volatile("cli");
-	for (;;)
-	{
-		asm volatile("hlt");
-	}
-}
-
 extern "C" void __cxa_pure_virtual()
 {
-	putstring("Virtual method called\n");
-	die();
+	panic("Virtual method called");
 }
 
 unsigned char answer = 65;
 
 void print_stack_use()
 {
-	putstring("stack usuage: ");
-	put_hex_long(KERNEL_STACK_TOP - (uint64_t) __builtin_frame_address(0));
-	put_char('\n');
+	dbg << "stack usuage: " << (KERNEL_STACK_TOP - (uint64_t) __builtin_frame_address(0)) << "\n";
 }
 
 struct mallocator_chunk
@@ -141,7 +127,7 @@ public:
 			chunk = chunk->next;
 		} while (chunk != head);
 
-		putstring("Trying to free a non-existing chunk of memory!\n");
+		panic("Trying to free a non-existing chunk of memory!");
 		die();
 	}
 
@@ -154,19 +140,18 @@ public:
 		int ie = 5555;
 
 		uint8_t* a = (uint8_t*) malloc(ia);
-		putstring("Malloc a: "); put_hex_long((uint64_t) a); put_char('\n');
+		dbg << "Malloc a: " << ((uint64_t) a) << '\n';
 		uint8_t* b = (uint8_t*) malloc(ib);
-		putstring("Malloc b: "); put_hex_long((uint64_t) b); put_char('\n');
+		dbg << "Malloc b: " << ((uint64_t) b) << '\n';
 		uint8_t* c = (uint8_t*) malloc(ic);
-		putstring("Malloc c: "); put_hex_long((uint64_t) c); put_char('\n');
+		dbg << "Malloc c: " << ((uint64_t) c) << '\n';
 		uint8_t* d = (uint8_t*) malloc(id);
-		putstring("Malloc d: "); put_hex_long((uint64_t) d); put_char('\n');
+		dbg << "Malloc d: " << ((uint64_t) d) << '\n';
 		uint8_t* e = (uint8_t*) malloc(ie);
-		putstring("Malloc e: "); put_hex_long((uint64_t) e); put_char('\n');
 
 		free(c);
 		c = (uint8_t*) malloc(ic);
-		putstring("Malloc c: "); put_hex_long((uint64_t) c); put_char('\n');
+		dbg << "Malloc c: " << ((uint64_t) c) << '\n';
 
 		for (int i = 0; i < ia; i++)
 			a[i] = i;
@@ -181,23 +166,23 @@ public:
 
 		for (int i = 0; i < ia; i++)
 			if (a[i] != (uint8_t) i)
-			{ putstring("aDeath\n"); die(); }
+				panic("CORRUPTION");
 
 		for (int i = 0; i < ib; i++)
 			if (b[i] != (uint8_t) i)
-			{ putstring("bDeath\n"); die(); }
+				panic("CORRUPTION");
 
 		for (int i = 0; i < ic; i++)
 			if (c[i] != (uint8_t) i)
-			{ putstring("cDeath\n"); die(); }
+				panic("CORRUPTION");
 
 		for (int i = 0; i < id; i++)
 			if (d[i] != (uint8_t) i)
-			{ putstring("dDeath\n"); die(); }
+				panic("CORRUPTION");
 
 		for (int i = 0; i < ie; i++)
 			if (e[i] != (uint8_t) i)
-			{ putstring("eDeath\n"); die(); }
+				panic("CORRUPTION");
 	}
 
 private:
@@ -206,12 +191,12 @@ private:
 	uint64_t virt_start;
 };
 
-int kmain(kernel_boot_info* kbi)
+int kmain()
 {
-	(void) kbi;
 	mallocator malor(mem, 0xffffa00000000000);
 
 	malor.test();
+
 
 #if 0
 	// XXX: Just a test!
@@ -252,19 +237,13 @@ extern "C" {
 void _start(kernel_boot_info* kbi)
 {
 	if (kbi->magic != KBI_MAGIC)
-	{
-		putstring("Bad magic number: ");
-		put_hex_int(kbi->magic); put_char('\n');
-		die();
-	}
+		panic("Bad magic number!");
 
 	memory mem(kbi);
 	memory::init(&mem);
 
 	_init();
-
-	kmain(kbi);
-
+	kmain();
 	_fini();
 }
 

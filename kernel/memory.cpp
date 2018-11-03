@@ -2,10 +2,10 @@
 #include "mb.h"
 #include "new.h"
 #include "frame_alloc.h"
+#include "debug.h"
 
 extern "C"
 {
-	#include "../common/debug_out.h"
 	#include "../common/config.h"
 }
 
@@ -19,7 +19,7 @@ memory::memory(kernel_boot_info* kbi)
 	auto mb_mmap_tag = get_mem_map(kbi);
 	if (!mb_mmap_tag)
 	{
-		putstring("No multiboot memory map found\n");
+		panic("No multiboot memory map found");
 		die();
 	}
 
@@ -35,15 +35,8 @@ memory::memory(kernel_boot_info* kbi)
 	/* Count RAM */
 	for (entry = mb_mmap_tag->entries; entry < entry_end; entry = mb_next(entry, mb_mmap_tag))
 	{
-		putstring("Memory region ");
-		put_hex_long(entry->addr);
-		putstring(" with length: ");
-		put_hex_long(entry->len);
-		putstring(" of type ");
 		const char *typeNames[] = { "Unknown", "available", "reserved", "ACPI reclaimable", "NVS", "\"bad ram\""};
-
-		putstring(typeNames[entry->type]);
-		put_char('\n');
+		dbg << "Memory region " <<  entry->addr << " with length: " << entry->len << " of type " << typeNames[entry->type] << '\n';
 
 		if (entry->type == MULTIBOOT_MEMORY_AVAILABLE)
 		{
@@ -56,14 +49,11 @@ memory::memory(kernel_boot_info* kbi)
 			}
 		}
 	}
-	putstring("Top of ram "); put_hex_long(top); put_char('\n');
-	putstring("Total ram "); put_hex_long(total_ram); put_char('\n');
+	dbg << "Top of ram " << top <<'\n';
+	dbg << "Total ram " << total_ram << '\n';
 
 	if (!largest_region_len)
-	{
-		putstring("No space found for physical memory page frame_alloc_bitmap\n");
-		die();
-	}
+		panic("No space found for physical memory page frame_alloc_bitmap");
 
 	auto end_page = largest_region_ptr + largest_region_len;
 
@@ -83,8 +73,7 @@ memory::memory(kernel_boot_info* kbi)
 		auto pg = fad.page();
 		if ((uint8_t*) pg >= end_page || !pg)
 		{
-			putstring("Ran out of memory for storing physical memory page frame_alloc_bitmap\n");
-			die();
+			panic("Ran out of memory for storing physical memory page frame_alloc_bitmap");
 		}
 
 		map_page((uint64_t) p, (uint64_t) pg);

@@ -23,14 +23,17 @@ crtn.o: crtn.S
 debug_out.o: ../common/debug_out.c ../common/debug_out.h
 	$(CC) $(CFLAGS) -c ../common/debug_out.c
 
+debug.o: debug.cpp debug.h
+	$(CC) $(CFLAGS) -c debug.cpp
+
 memory.o: memory.cpp memory.h frame_alloc.h
 	$(CPP) $(CPPFLAGS) -c memory.cpp
 
 frame_alloc.o: frame_alloc.cpp frame_alloc.h memory.h
 	$(CPP) $(CPPFLAGS) -c frame_alloc.cpp
 
-kernel.elf: crti.o crtn.o debug_out.o kernel.o memory.o frame_alloc.o
-	$(LD) $(LDFLAGS) debug_out.o kernel.o memory.o frame_alloc.o  -o kernel.elf
+kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o frame_alloc.o
+	$(LD) $(LDFLAGS) debug.o debug_out.o kernel.o memory.o frame_alloc.o  -o kernel.elf
 
 clean:
 	rm -rf *.o kernel.elf

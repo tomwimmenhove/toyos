@@ -1,11 +1,11 @@
 extern "C"
 {
-	#include "../common/debug_out.h"
 	#include "../common/config.h"
 }
 
 #include "frame_alloc.h"
-#include "mb.h"
+#include"mb.h"
+#include "debug.h"
 
 extern void* _data_end;
 extern void* _code_start;
@@ -82,10 +82,7 @@ uint64_t frame_alloc_bitmap::page()
 {
 	uint64_t p = find_zero();
 	if (p == SIZE_MAX)
-	{
-		putstring("OOM!\n");
-		die();
-	}
+		panic("OOM during frame_alloc_bitmap::page()");
 	set(p);
 	return p * 0x1000;
 }
@@ -103,9 +100,6 @@ uint64_t frame_alloc_bitmap::mem_free()
 void frame_alloc_bitmap::check_index(size_t p)
 {
 	if (p >= size)
-	{
-		putstring("Tried to access past end of frame_alloc_bitmap!\n");
-		die();
-	}
+		panic("Tried to access past end of frame_alloc_bitmap!");
 }
 
