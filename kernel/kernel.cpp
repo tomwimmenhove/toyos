@@ -243,12 +243,14 @@ int kmain(kernel_boot_info* kbi)
 	die();
 }
 
-extern "C" void _start(kernel_boot_info* kbi)
-{
-	putstring("Kernel info structure at ");
-	put_hex_long((uint64_t) kbi);
-	put_char('\n');
+extern "C" {
+	void _init();
+	void _fini();
 
+	void _start(kernel_boot_info* kbi);
+}
+void _start(kernel_boot_info* kbi)
+{
 	if (kbi->magic != KBI_MAGIC)
 	{
 		putstring("Bad magic number: ");
@@ -259,6 +261,10 @@ extern "C" void _start(kernel_boot_info* kbi)
 	memory mem(kbi);
 	memory::init(&mem);
 
+	_init();
+
 	kmain(kbi);
+
+	_fini();
 }
 

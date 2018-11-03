@@ -4,7 +4,10 @@ SECTIONS
 {
 	. = 0xffffffff80000000;
 	_code_start = .;
+
+	.init : { *(.init) }
 	.text : { *(.text) }
+	.fini : { *(.fini) }
 
 	. = ALIGN(8); 
 	.data : { *(.data) }
