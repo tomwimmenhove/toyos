@@ -62,6 +62,7 @@ debug_out& debug_out::operator<< (long long unsigned int llu)
 
 void die()
 {
+	asm volatile("cli");
 #if 0
 	asm volatile("movl $0, %eax");
 	asm volatile("out %eax, $0xf4");
