@@ -3,7 +3,7 @@
 mallocator::mallocator(uint64_t virt_start)
 	: virt_start(virt_start)
 {
-	mem->map_page(virt_start, mem->frame_alloc->page());
+	memory::map_page(virt_start, memory::frame_alloc->page());
 
 	head = (mallocator_chunk*) virt_start;
 
@@ -50,7 +50,7 @@ void* mallocator::malloc(size_t size)
 	uint64_t end_virt = (((uint64_t) &tail->data[tail->len - 1]) & ~0xfff) + 0x1000;
 	for (size_t i = 0; i < size; i += 0x1000)
 	{
-		mem->map_page(end_virt, mem->frame_alloc->page());
+		memory::map_page(end_virt, memory::frame_alloc->page());
 		end_virt += 0x1000;
 	}
 

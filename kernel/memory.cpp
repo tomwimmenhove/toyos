@@ -12,9 +12,9 @@ extern "C"
 extern void* _data_end;
 extern void* _code_start;
 
-memory* mem = nullptr;
+frame_alloc_iface* memory::frame_alloc;
 
-memory::memory(kernel_boot_info* kbi)
+void memory::init(kernel_boot_info* kbi)
 {
 	auto mb_mmap_tag = get_mem_map(kbi);
 	if (!mb_mmap_tag)
@@ -95,13 +95,13 @@ void memory::clean_page_tables()
 	volatile uint64_t* pml4 = (uint64_t*) PG_PML4;
 	for (int i = 0; i < 0x200; i++) if (pml4[i] & 1)
 	{
-		temp_page<uint64_t> pdp(tmp_virt, pml4[i] & ~0xfff, this);
+		temp_page<uint64_t> pdp(tmp_virt, pml4[i] & ~0xfff);
 		for (int j = 0; j < 0x200; j++) if (pdp[j] & 1)
 		{
-			temp_page<uint64_t> pd(tmp_virt + 0x1000, pdp[j] & ~0xfff, this);
+			temp_page<uint64_t> pd(tmp_virt + 0x1000, pdp[j] & ~0xfff);
 			for (int k = 0; k < 0x200; k++) if (pd[k] & 1)
 			{
-				temp_page<uint64_t> pt(tmp_virt + 0x2000, pd[k] & ~0xfff, this);
+				temp_page<uint64_t> pt(tmp_virt + 0x2000, pd[k] & ~0xfff);
 				for (int l = 0; l < 0x200; l++) if (pt[l] & 1)
 				{
 					uint64_t virt = ((uint64_t) i) << 39 | ((uint64_t) j) << 30 |

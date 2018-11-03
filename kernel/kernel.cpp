@@ -51,7 +51,7 @@ int kmain()
 	uint64_t phys = 0xb8000;
 	uint64_t virt = 0xffffffff40000000 - 0x1000;
 
-	mem->map_page(virt, phys);
+	memory::map_page(virt, phys);
 
 	volatile unsigned char* pp = (unsigned char*) virt;
 	for (int i = 0; i < 4096; i++)
@@ -78,8 +78,7 @@ void _start(kernel_boot_info* kbi)
 	if (kbi->magic != KBI_MAGIC)
 		panic("Bad magic number!");
 
-	memory mem(kbi);
-	memory::init(&mem);
+	memory::init(kbi);
 
 	_init();
 	kmain();
