@@ -1,6 +1,7 @@
 #include "memory.h"
 #include "mb.h"
 #include "new.h"
+#include "frame_alloc.h"
 
 extern "C"
 {
@@ -11,35 +12,7 @@ extern "C"
 extern void* _data_end;
 extern void* _code_start;
 
-
-class new_page_dumb : public frame_alloc_iface
-{
-	public:
-		new_page_dumb(kernel_boot_info* kbi, uint64_t alloc_ptr_start, uint64_t alloc_ptr_end)
-			: kbi(kbi), alloc_ptr(alloc_ptr_start), alloc_ptr_end(alloc_ptr_end)
-		{ }
-
-		uint64_t page() override
-		{
-			uint64_t p = alloc_ptr;
-			while ((p >= kbi->alloc_first && p < kbi->alloc_end) ||
-					(p >= memory::get_phys((uint64_t) &_code_start) && p <= memory::get_phys((uint64_t) &_data_end - 0x1000)))
-				p += 0x1000;
-
-			alloc_ptr = p + 0x1000;
-
-			if (p >= alloc_ptr_end)
-				return 0;
-
-			return p;
-		}
-
-	private:
-		kernel_boot_info* kbi;
-		uint64_t alloc_ptr;
-		uint64_t alloc_ptr_end;
-};
-
+memory* mem = nullptr;
 
 memory::memory(kernel_boot_info* kbi)
 {
@@ -88,7 +61,7 @@ memory::memory(kernel_boot_info* kbi)
 
 	if (!largest_region_len)
 	{
-		putstring("No space found for physical memory page bitmap\n");
+		putstring("No space found for physical memory page frame_alloc_bitmap\n");
 		die();
 	}
 
@@ -99,18 +72,18 @@ memory::memory(kernel_boot_info* kbi)
 	uint8_t* bitmapd = (uint8_t*) 0xffffffff40000000;
 
 	/* Create our temporary 'dumb' page frame allocator */
-	new_page_dumb npd(kbi, (uint64_t) largest_region_ptr, (uint64_t) end_page);
-	frame_alloc = &npd;
+	frame_alloc_dumb fad(kbi, (uint64_t) largest_region_ptr, (uint64_t) end_page);
+	frame_alloc = &fad;
 
-	/* Lets allocate the memory for the bitmap, we're just going to start allocating at the largest region and hope it's big enough */
+	/* Lets allocate the memory for the frame_alloc_bitmap, we're just going to start allocating at the largest region and hope it's big enough */
 	uint64_t allocced = 0;
 	uint8_t* p = (uint8_t*) bitmapd;
-	while (allocced < bitmap_size + sizeof(bitmap)) // Don't forget the size of the bitmap struct itself
+	while (allocced < bitmap_size + sizeof(frame_alloc_bitmap)) // Don't forget the size of the frame_alloc_bitmap struct itself
 	{
-		auto pg = npd.page();
+		auto pg = fad.page();
 		if ((uint8_t*) pg >= end_page || !pg)
 		{
-			putstring("Ran out of memory for storing physical memory page bitmap\n");
+			putstring("Ran out of memory for storing physical memory page frame_alloc_bitmap\n");
 			die();
 		}
 
@@ -118,24 +91,11 @@ memory::memory(kernel_boot_info* kbi)
 		p += 0x1000;
 		allocced += 0x1000;
 	}
-	/* Construct the bitmap class at it's fixed address */
-	frame_alloc = new(reinterpret_cast<void*>(bitmapd)) bitmap(top / 0x1000);
+	/* Construct the frame_alloc_bitmap class at it's fixed address */
+	frame_alloc = new(reinterpret_cast<void*>(bitmapd)) frame_alloc_bitmap(top / 0x1000);
 
-	/* Setup the bitmap and unmap unused pages */
+	/* Setup the frame_alloc_bitmap and unmap unused pages */
 	setup_usage(mb_mmap_tag, top);
-
-	// XXX: Just a test!
-	uint8_t* ppp = (uint8_t*) 0xffffa00000000000;
-	for (int i = 0; i < 1 * 1024 * 1024; i += 0x1000)
-	{
-		map_page((uint64_t) ppp, get_bitmap()->page());
-		ppp += 0x1000;
-	}
-	ppp = (uint8_t*) 0xffffa00000000000;
-	for (int i = 0; i < 1 * 1024 * 1024; i++)
-	{
-		ppp[i] = 65;
-	}
 }
 
 void memory::clean_page_tables()
@@ -207,13 +167,10 @@ multiboot_tag_mmap* memory::get_mem_map(kernel_boot_info* kbi)
 	auto mb_tag = (struct multiboot_tag *) mb_tag_addr;
 	while (mb_tag->type)
 	{
+		if (mb_tag->type == MULTIBOOT_TAG_TYPE_MMAP)
+			return (multiboot_tag_mmap*) mb_tag;
 		mb_tag_addr += (mb_tag->size + 7) & ~7;
 		mb_tag = (struct multiboot_tag *) mb_tag_addr;
-
-		if (mb_tag->type == MULTIBOOT_TAG_TYPE_MMAP)
-		{
-			return (multiboot_tag_mmap*) mb_tag;
-		}
 	}
 
 	return nullptr;
