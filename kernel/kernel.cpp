@@ -73,8 +73,28 @@ static inline void lidt(struct descr_ptr* p)
 						: "m" (*p));
 }
 
-extern "C" void interrupt_handler()
+struct __attribute__((packed)) interrupt_state
 {
+	uint64_t r15;
+	uint64_t r14;
+	uint64_t r13;
+	uint64_t r12;
+
+	uint64_t rdx;
+	uint64_t rcx;
+	uint64_t rax;
+
+	uint64_t rsi;
+	uint64_t rdi;
+
+	uint64_t err_code;
+};
+
+extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state)
+{
+		dbg << "Interrupt " << irq_num << " err_code: " << state->err_code << '\n';
+
+		die();
 }
 
 extern "C" void irq_0();
@@ -125,7 +145,7 @@ int kmain()
 							1,      /* Present */
 
 							1,      /* Long mode */
-							0,      /* Default operand size: ?? */
+							0,      /* Default operand size: 32 bit */
 
 							1),     /* Granularity: Scale limit by 4096 */
 
@@ -151,7 +171,7 @@ int kmain()
 							1,      /* Present */
 
 							1,      /* Long mode */
-							0,      /* Default operand size: ?? */
+							0,      /* Default operand size: 32 bit */
 
 							1),     /* Granularity: Scale limit by 4096 */
 
@@ -210,6 +230,8 @@ int kmain()
 	};
 
 	lidt(&idtp);
+
+	*(volatile uint8_t*) 0 = 0;
 
 	asm("int $42");
 
