@@ -10,25 +10,25 @@
 
 struct mallocator_chunk
 {
-        mallocator_chunk* prev;
-        mallocator_chunk* next;
+	mallocator_chunk* prev;
+	mallocator_chunk* next;
 
-        size_t len;
-        int used;
-        uint8_t data[0];
+	size_t len;
+	int used;
+	uint8_t data[0];
 };
 
 class mallocator
 {
 public: 
-        mallocator(uint64_t virt_start);
-        void* malloc(size_t size);
-        void free(void* p);
-        void test();
+	mallocator(uint64_t virt_start);
+	void* malloc(size_t size);
+	void free(void* p);
+	void test();
 
 private:
-        mallocator_chunk* head;
-        uint64_t virt_start;
+	mallocator_chunk* head;
+	uint64_t virt_start;
 };
 
 #endif /* MALLOC_H */

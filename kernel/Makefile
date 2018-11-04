@@ -20,6 +20,9 @@ crti.o: crti.S
 crtn.o: crtn.S
 	$(AS) -c crtn.S -o crtn.o
 
+irq_jump.o: irq_jump.S
+	$(AS) -c irq_jump.S -o irq_jump.o
+
 debug_out.o: ../common/debug_out.c ../common/debug_out.h
 	$(CC) $(CFLAGS) -c ../common/debug_out.c
 
@@ -35,8 +38,8 @@ malloc.o: malloc.cpp malloc.h
 frame_alloc.o: frame_alloc.cpp frame_alloc.h memory.h
 	$(CPP) $(CPPFLAGS) -c frame_alloc.cpp
 
-kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o
-	$(LD) $(LDFLAGS) debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o  -o kernel.elf
+kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o irq_jump.o
+	$(LD) $(LDFLAGS) irq_jump.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o -o kernel.elf
 
 clean:
 	rm -rf *.o kernel.elf

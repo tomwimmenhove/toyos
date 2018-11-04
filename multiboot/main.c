@@ -344,7 +344,7 @@ void c_entry(unsigned int magic, uint32_t mb_addr)
 				1,		/* Present */
 
 				1,		/* Long mode */
-				1,		/* Default operand size: 64 bit */
+				0,		/* Default operand size: ?? */
 
 				1),		/* Granularity: Scale limit by 4096 */
 
