@@ -117,7 +117,7 @@ int kmain()
 			0,
 
 			/* 0x08: Code Segment Descriptor */
-			mk_desc(    0,//0xfffff,    /* Segment limit */
+			mk_desc(		0,      /* Segment limit */
 							0,      /* Base address */
 							8,      /* Type: Execute-Only Code-Segment */
 							1,      /* S-field: User */
@@ -125,9 +125,9 @@ int kmain()
 							1,      /* Present */
 
 							1,      /* Long mode */
-							0,//1,      /* Default operand size: ?? */
+							0,      /* Default operand size: ?? */
 
-							0),//1),     /* Granularity: Scale limit by 4096 */
+							1),     /* Granularity: Scale limit by 4096 */
 
 			/* 0x10: Data Segment Descriptor */
 			mk_desc(    0xfffff,    /* Segment limit */
@@ -143,16 +143,15 @@ int kmain()
 			/* -------------------------------- */
 
 			/* 0x18: Interrupt Code Segment Descriptor */
-			mk_desc(    0xfffff,    /* Segment limit */
+			mk_desc(		0,      /* Segment limit */
 							0,      /* Base address */
-							0xe,    /* Type 64-bit interrupt gate */
-							0,      /* S-field: System */
-							0,      /* Privilege: */
+							8,      /* Type: Execute-Only Code-Segment */
+							1,      /* S-field: User */
+							0,      /* Privilege: 0 */
 							1,      /* Present */
 
 							1,      /* Long mode */
-//							1,      /* Default operand size: 64 bit */
-							01,      /* Default operand size: 64 bit */
+							0,      /* Default operand size: ?? */
 
 							1),     /* Granularity: Scale limit by 4096 */
 
@@ -183,11 +182,6 @@ int kmain()
 					"lretq\n"						// Jump
 					"jmp_lbl:");
 
-//	dbg << "before\n";
-//	do_test();
-//	dbg << "after\n";
-
-
 	/* Fill IDT entries */
 	for (int i = 0; i < 256; i++)
 	{
@@ -199,10 +193,10 @@ int kmain()
 		e.offset_2 = (offset >> 16) & 0xffff;
 		e.offset_3 = (offset >> 32) & 0xffffffff;
 
-		e.type_attr = 0x80;
+		e.type_attr = 0x8e;
 
 		e.ist = 0;
-		e.selector = 0x8;
+		e.selector = 0x18;
 		e.zero = 0;
 
 	}
@@ -215,60 +209,15 @@ int kmain()
 			(uint64_t*) &idt
 	};
 
-	for (int i = 0; i < 256; i++)
-	{   
-			uint64_t offset =  ((uint64_t) &irq_0) + i * 0x10;
-
-			auto rax = offset;//((uint64_t) &irq_0);
-
-			auto p = (uint16_t*) &idt[i];
-
-			//mov %ax, idt
-			p[0] = rax;
-
-			//movw $0x20, idt+2 // replace 0x20 with your code section selector
-			p[1] = 0x8;
-
-			//movw $0x8e00, idt+4
-			p[2] = 0x8e00;
-
-			//shr $16, %rax
-			rax >>= 16;
-
-			//mov %ax, idt+6
-			p[3] = rax;
-
-			//shr $16, %rax
-			rax >>= 16;
-
-			//mov %rax, idt+8
-			p[4] = rax;
-	}
-
-//	for (int i = 0; i < 256; i++)
-	for (int i = 0; i < 50; i++)
-	{
-		uint64_t offset =  ((uint64_t) &irq_0) + i * 0x10;
-		auto& e = idt[i];
-		dbg << "irq " << " at " << offset << " == " << (e.offset_1 | ((uint64_t) e.offset_2 << 16) | ((uint64_t) e.offset_3 << 32)) << '\n';
-	}
-
-
-
-//	irq_0();
-
-
 	lidt(&idtp);
 
-//	asm("sti");
 	asm("int $42");
 
 	dbg << "ints work\n";
 
-	for(;;)asm("hlt");
-
-
 	die();
+
+	return 0;
 }
 
 extern "C"
