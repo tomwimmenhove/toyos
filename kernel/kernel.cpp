@@ -29,8 +29,6 @@ void print_stack_use()
 	dbg << "stack usuage: " << (KERNEL_STACK_TOP - (uint64_t) __builtin_frame_address(0)) << "\n";
 }
 
-idt_entry idt[256];
-
 struct __attribute__((packed)) interrupt_state
 {
 	uint64_t r15;
@@ -74,6 +72,25 @@ struct __attribute__((packed)) gdt_ptr
 			        uint64_t* base;
 };
 
+/* GDT */
+desc_null kernel_null_descriptor;
+desc_code_seg kernel_code_segment_descriptor { false, 0, true, true, false };
+desc_data_seg kernel_data_segment_descriptor { 0, true, 0, true };
+desc_code_seg interrupt_code_segment_descriptor { false, 0, true, true, false };
+
+gdt_entry descs[] = {
+	kernel_null_descriptor,				// 0x00
+	kernel_code_segment_descriptor,		// 0x08
+	kernel_data_segment_descriptor,		// 0x10
+	interrupt_code_segment_descriptor,	// 0x18
+};
+
+desc_ptr gdt_ptr { descs, sizeof(descs) };
+
+/* IDT */
+idt_entry idt[256];
+desc_ptr idt_ptr { idt, sizeof(idt) };
+
 void kmain()
 {
 	mallocator malor(0xffffa00000000000);
@@ -105,19 +122,6 @@ void kmain()
 		pp[i] = 65;
 	}
 
-	desc_null kernel_null_descriptor;
-	desc_code_seg kernel_code_segment_descriptor { false, 0, true, true, false };
-	desc_data_seg kernel_data_segment_descriptor { 0, true, 0, true };
-	desc_code_seg interrupt_code_segment_descriptor { false, 0, true, true, false };
-
-	gdt_entry descs[] = {
-		kernel_null_descriptor,				// 0x00
-		kernel_code_segment_descriptor,		// 0x08
-		kernel_data_segment_descriptor,		// 0x10
-		interrupt_code_segment_descriptor,	// 0x18
-	};
-
-	desc_ptr gdt_ptr { descs, sizeof(descs) };
 	gdt_ptr.lgdt();
 
 	/* Load the code and data segment */
@@ -140,7 +144,6 @@ void kmain()
 	for (int i = 0; i < 256; i++)
 		idt[i] = idt_entry(((uint64_t) &irq_0) + i * 0x10, 0x18, 0, 0x8e);
 
-	desc_ptr idt_ptr { idt, sizeof(idt) };
 	idt_ptr.lidt();
 
 	test();

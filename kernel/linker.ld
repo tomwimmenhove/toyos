@@ -13,7 +13,28 @@ SECTIONS
 	.data : { *(.data) }
 
 	. = ALIGN(8); 
-	.rodata : { *(.rodata*) }
+	.rodata  : { *(.rodata*) }
+	.rodata1 : { *(.rodata1) }
+	.tdat    : { *(.tdata .tdata.* .gnu.linkonce.td.*) }
+	.tbss    : { *(.tbss .tbss.* .gnu.linkonce.tb.*) *(.tcommon) }
+
+	.ctors   :
+	{
+		*crtbegin.o(.ctors)
+		*crtbegin?.o(.ctors)
+		*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .ctors)
+		*(SORT(.ctors.*))
+		*(.ctors)
+	}
+	  
+	.dtors   :
+	{
+		*crtbegin.o(.dtors)
+		*crtbegin?.o(.dtors)
+		*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .dtors)
+		*(SORT(.dtors.*))
+		*(.dtors)
+	}
 
 	. = ALIGN(0x1000); 
 	.bss : { *(.bss) }
