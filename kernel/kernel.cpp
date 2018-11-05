@@ -117,23 +117,28 @@ void kmain()
 		interrupt_code_segment_descriptor,	// 0x18
 	};
 
-	dbg << "s: " << sizeof(descs) << '\n';
-
 	desc_ptr gdt_ptr { descs, sizeof(descs) };
 	gdt_ptr.lgdt();
 
-	asm volatile(	"sub $16, %rsp\n"				// Make space
-					"movq $0x8, 8(%rsp)\n"			// Set code segment
-					"movabsq $jmp_lbl, %rax\n"		// Set return address (label)...
-					"mov %rax, (%rsp)\n"			// ... at stack pointer
+	/* Load the code and data segment */
+	asm volatile(	"sub $16, %%rsp\n"				// Make space
+					"movq $0x8, 8(%%rsp)\n"			// Set code segment
+					"movabsq $jmp_lbl, %%rax\n"		// Set return address (label)...
+					"mov %%rax, (%%rsp)\n"			// ... at stack pointer
 					"lretq\n"						// Jump
-					"jmp_lbl:");
+					"jmp_lbl:\n"
+					
+					"mov $0x10, %%ecx\n"			// Load the data segment
+					"mov %%ecx, %%ds\n"				// Stick it in all data-seg regs
+					"mov %%ecx, %%es\n"
+					"mov %%ecx, %%fs\n"
+					"mov %%ecx, %%gs\n"
+					"mov %%ecx, %%ss\n"
+					: : : "%ecx");
 
 	/* Fill IDT entries */
 	for (int i = 0; i < 256; i++)
 		idt[i] = idt_entry(((uint64_t) &irq_0) + i * 0x10, 0x18, 0, 0x8e);
-
-	dbg << "sizeof(idt): " << sizeof(idt) << '\n';
 
 	desc_ptr idt_ptr { idt, sizeof(idt) };
 	idt_ptr.lidt();
