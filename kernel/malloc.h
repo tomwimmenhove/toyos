@@ -21,14 +21,14 @@ struct mallocator_chunk
 class mallocator
 {
 public: 
-	mallocator(uint64_t virt_start);
-	void* malloc(size_t size);
-	void free(void* p);
-	void test();
+	static void init(uint64_t virt_start);
+	static void* malloc(size_t size);
+	static void free(void* p);
+	static void test();
 
 private:
-	mallocator_chunk* head;
-	uint64_t virt_start;
+	static mallocator_chunk* head;
+	static uint64_t virt_start;
 };
 
 #endif /* MALLOC_H */

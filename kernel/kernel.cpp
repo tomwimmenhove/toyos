@@ -37,9 +37,9 @@ void __attribute__ ((noinline)) test()
 
 void kmain()
 {
-	mallocator malor(0xffffa00000000000);
+	mallocator::init(0xffffa00000000000);
 
-	malor.test();
+	mallocator::test();
 
 
 #if 0
@@ -71,7 +71,7 @@ void kmain()
 
 	test();
 
-//	*(uint8_t*) 42 = 42;
+	*(uint8_t*) 42 = 42;
 
 	dbg << "ints work\n";
 

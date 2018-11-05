@@ -1,8 +1,12 @@
 #include "malloc.h"
 
-mallocator::mallocator(uint64_t virt_start)
-	: virt_start(virt_start)
+mallocator_chunk* mallocator::head;
+uint64_t mallocator::virt_start;
+
+void mallocator::init(uint64_t virt_start)
 {
+	mallocator::virt_start = virt_start;
+
 	memory::map_page(virt_start, memory::frame_alloc->page());
 
 	head = (mallocator_chunk*) virt_start;
