@@ -43,35 +43,91 @@ struct __attribute__((packed)) idt_entry {
 		uint16_t offset_2; // offset bits 16..31
 		uint32_t offset_3; // offset bits 32..63
 		uint32_t zero;     // reserved
+};/*
+		idt_entry()
+		{ }
+
+		idt_entry(uint64_t offset, uint16_t selector, uint8_t ist, uint8_t type_attr)
+			: offset_1(offset & 0xffff),
+			  selector(selector),
+			  ist(ist),
+			  type_attr(type_attr),
+			  offset_2((offset >> 16) & 0xffff),
+			  offset_3((offset >> 32) & 0xffffffff),
+			  zero(0)
+		{ }
+};*/
+
+idt_entry idt_entries[256];
+
+struct __attribute__((packed)) gdt_entry
+{
+	uint64_t l;
 };
 
-idt_entry idt[256];
-
-/* Figure 4-13 in AMD64 Architecture Programmer’s Manual, Volume 2: System Programming */
-static inline uint64_t mk_desc(uint32_t limit, uint32_t base, int type, int s, int privilege, int present, int long_mode, int size_db, int granularity)
+struct desc_null : public gdt_entry
 {
-		uint32_t ldw;
-		uint32_t udw;
+	desc_null()
+		: gdt_entry{0}
+	{ }
+};
 
-		ldw = (limit & 0xffff) | ((base & 0xffff) << 16);
-		udw = ((base >> 16) & 0xff) | (type << 8) | (s << 12) | (privilege << 13) | (present << 15) | (limit & 0xf0000) | (long_mode << 21) | (size_db << 22) | (granularity << 23) | (base & 0xff000000);
-
-		return (uint64_t) udw << 32 | ldw;
-}
-
-static inline void lgdt(struct descr_ptr* p)
+struct desc_code_seg : public gdt_entry
 {
+	desc_code_seg(bool conforming, int privilege, bool present, bool long_mode, bool large_operand)
+			: gdt_entry({
+					((uint64_t) conforming ? 1llu << (32 + 10) : 0) |
+					((uint64_t) (privilege & 3) << (32 + 13)) |
+					((uint64_t) present ? 1llu << (32 + 15) : 0) |
+					((uint64_t) long_mode ? 1llu << (32 + 21) : 0) |
+					((uint64_t) large_operand ? 1llu << (32 + 22) : 0) |
+					((uint64_t) 3llu << (32 + 11)) })
+			{
+				(void) conforming;
+				(void) privilege;
+				(void) present;
+				(void) long_mode;
+				(void) large_operand;
+			}
+};
+
+struct desc_data_seg : public gdt_entry
+{
+		desc_data_seg(uint32_t base, bool writable, int privilege, bool present)
+			: gdt_entry({
+					((uint64_t) (base & 0xffff) << 16) |
+					((uint64_t) ((base >> 16) & 0xff) << 32) |
+					((uint64_t) ((base >> 24) & 0xff) << 56) |
+					((uint64_t) writable ? 1llu << (32 + 9) : 0) |
+					((uint64_t) (privilege & 3) << (32 + 13)) |
+					((uint64_t) present ? 1llu << (32 + 15) : 0) |
+					((uint64_t) 1llu << (32 + 12))
+
+					})
+			{ }
+};
+
+struct __attribute__((packed)) desc_ptr
+{
+	desc_ptr(gdt_entry* base, uint16_t size)
+		: size(size), base(base)
+	{ }
+
+	inline void lgdt()
+	{
 		asm volatile(   "lgdt %0"
-						:
-						: "m" (*p));
-}
+				: : "m" (*this));
+	}
 
-static inline void lidt(struct descr_ptr* p)
-{
+	inline void lidt()
+	{
 		asm volatile(   "lidt %0"
-						:
-						: "m" (*p));
-}
+				: : "m" (*this));
+	}
+
+	uint16_t size;
+	gdt_entry* base;
+};
 
 struct __attribute__((packed)) interrupt_state
 {
@@ -88,19 +144,55 @@ struct __attribute__((packed)) interrupt_state
 	uint64_t rdi;
 
 	uint64_t err_code;
+
+	uint64_t rip;
+	uint64_t cs;
+	uint64_t rflags;
+	uint64_t rsp;
+	uint64_t ss;
 };
 
 extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state)
 {
-		dbg << "Interrupt " << irq_num << " err_code: " << state->err_code << '\n';
+		dbg << "Interrupt " << irq_num << " err_code: " << state->err_code << " at rip=" << state->rip << '\n';
+}
 
-		die();
+void __attribute__ ((noinline)) test()
+{
+		asm("int $42");
 }
 
 extern "C" void irq_0();
 extern "C" void do_test();
 
-int kmain()
+
+struct __attribute__((packed)) gdt_ptr
+{
+	uint16_t size;
+	uint64_t* base;
+};
+
+static inline void lidt(struct descr_ptr* p)
+{
+	asm volatile(   "lidt %0"
+			:
+			: "m" (*p));
+}
+
+/* The descriptor table */
+desc_null kernel_null_descriptor;
+desc_code_seg kernel_code_segment_descriptor { false, 0, true, true, false };
+desc_data_seg kernel_data_segment_descriptor { 0, true, 0, true };
+desc_code_seg interrupt_code_segment_descriptor { false, 0, true, true, false };
+
+gdt_entry gdt_entries[] = {
+	kernel_null_descriptor,				// 0x00
+	kernel_code_segment_descriptor,		// 0x08
+	kernel_data_segment_descriptor,		// 0x10
+	interrupt_code_segment_descriptor,	// 0x18
+};
+
+void kmain()
 {
 	mallocator malor(0xffffa00000000000);
 
@@ -131,69 +223,9 @@ int kmain()
 		pp[i] = 65;
 	}
 
-	uint64_t gdt[] =
-	{   
-			/* 0x00: Null descriptor */
-			0,
 
-			/* 0x08: Code Segment Descriptor */
-			mk_desc(		0,      /* Segment limit */
-							0,      /* Base address */
-							8,      /* Type: Execute-Only Code-Segment */
-							1,      /* S-field: User */
-							0,      /* Privilege: 0 */
-							1,      /* Present */
-
-							1,      /* Long mode */
-							0,      /* Default operand size: 32 bit */
-
-							1),     /* Granularity: Scale limit by 4096 */
-
-			/* 0x10: Data Segment Descriptor */
-			mk_desc(    0xfffff,    /* Segment limit */
-							0,      /* Base address */
-							2,      /* Type: Read/Write Data-Segment */
-							1,      /* S-field: User */
-							0,      /* Privilege: 0 */
-							1,      /* Present */
-							0,      /* Unused */
-							1,      /* Default operand size: 32 bit */
-							1),     /* Granularity: Scale limit by 4096 */
-
-			/* -------------------------------- */
-
-			/* 0x18: Interrupt Code Segment Descriptor */
-			mk_desc(		0,      /* Segment limit */
-							0,      /* Base address */
-							8,      /* Type: Execute-Only Code-Segment */
-							1,      /* S-field: User */
-							0,      /* Privilege: 0 */
-							1,      /* Present */
-
-							1,      /* Long mode */
-							0,      /* Default operand size: 32 bit */
-
-							1),     /* Granularity: Scale limit by 4096 */
-
-			/* 0x20: Interrupt Data Segment Descriptor */
-			mk_desc(    0xfffff,    /* Segment limit */
-							0,      /* Base address */
-							2,      /* Type: Read/Write Data-Segment */
-							0,      /* S-field: System */
-							0,      /* Privilege: */
-							1,      /* Present */
-							0,      /* Unused */
-							1,      /* Default operand size: 32 bit */
-							1),     /* Granularity: Scale limit by 4096 */
-	};
-
-	struct descr_ptr gdtp =
-	{
-			sizeof(gdt) - 1,
-			gdt
-	};
-
-	lgdt(&gdtp);
+	desc_ptr dp { gdt_entries, sizeof(gdt_entries) };
+	dp.lgdt();
 
 	asm volatile(	"sub $16, %rsp\n"				// Make space
 					"movq $0x8, 8(%rsp)\n"			// Set code segment
@@ -202,12 +234,16 @@ int kmain()
 					"lretq\n"						// Jump
 					"jmp_lbl:");
 
+#if 1
 	/* Fill IDT entries */
 	for (int i = 0; i < 256; i++)
 	{
 		uint64_t offset =  ((uint64_t) &irq_0) + i * 0x10;
 
-		auto& e = idt[i];
+#if 0
+		idt_entries[i] = idt_entry(offset, 0x18, 0, 0x8e);
+#else
+		auto& e = idt_entries[i];
 
 		e.offset_1 = offset & 0xffff;
 		e.offset_2 = (offset >> 16) & 0xffff;
@@ -218,28 +254,35 @@ int kmain()
 		e.ist = 0;
 		e.selector = 0x18;
 		e.zero = 0;
-
+#endif
 	}
 
-	dbg << "sizeof(idt): " << sizeof(idt) << '\n';
+	dbg << "sizeof(idt_entries): " << sizeof(idt_entries) << '\n';
 
 	struct descr_ptr idtp =
 	{
-			sizeof(idt) - 1,
-			(uint64_t*) &idt
+			sizeof(idt_entries) - 1,
+			(uint64_t*) &idt_entries
 	};
+
+
+//		asm volatile(   "lgdt %0"
+//				:
+//				: "m" (*(&idtp)));
 
 	lidt(&idtp);
 
-	*(volatile uint8_t*) 0 = 0;
+//	*(volatile uint8_t*) 0 = 0;
+//	asm("int $42");
+//	asm("sti");
 
-	asm("int $42");
+	test();
 
 	dbg << "ints work\n";
 
+	for(;;) asm volatile ("hlt");
+#endif
 	die();
-
-	return 0;
 }
 
 extern "C"
@@ -260,5 +303,7 @@ void _start(kernel_boot_info* kbi)
 	_init();
 	kmain();
 	_fini();
+
+	panic("kmain() returned!?");
 }
 

@@ -19,8 +19,8 @@ public:
 	debug_out& operator<< (long long unsigned int llu);
 };
 
-void die();
-void panic(const char* msg);
+void die() __attribute__ ((noreturn));
+void panic(const char* msg) __attribute__ ((noreturn));
 
 extern debug_out dbg;
 
