@@ -9,8 +9,6 @@ void mallocator::init(uint64_t virt_start, size_t max_size)
 	mallocator::virt_start = virt_start;
 	mallocator::max_size = max_size;
 
-//	memory::map_page(virt_start, memory::frame_alloc->page());
-
 	head = (mallocator_chunk*) virt_start;
 
 	head->next = head;
@@ -56,7 +54,6 @@ void* mallocator::malloc(size_t size)
 	uint64_t end_virt = (((uint64_t) &tail->data[tail->len - 1]) & ~0xfff) + 0x1000;
 	for (size_t i = 0; i < size; i += 0x1000)
 	{
-//		memory::map_page(end_virt, memory::frame_alloc->page());
 		end_virt += 0x1000;
 	}
 
@@ -95,6 +92,13 @@ void mallocator::free(void* p)
 
 	panic("Trying to free a non-existing chunk of memory!");
 	die();
+}
+
+void mallocator::handle_pg_fault(interrupt_state*, uint64_t addr)
+{
+	/* Map the page if it's our's */
+	if (addr >= virt_start && addr < virt_start + max_size)
+		memory::map_page(addr & ~0xfff, memory::frame_alloc->page());
 }
 
 void mallocator::test()
@@ -151,10 +155,3 @@ void mallocator::test()
 			panic("CORRUPTION");
 }
 
-void mallocator::handle_pg_fault(interrupt_state*, uint64_t addr)
-{
-	if (addr >= virt_start && addr < virt_start + max_size)
-	{
-		memory::map_page(addr & ~0xfff, memory::frame_alloc->page());
-	}
-}

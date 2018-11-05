@@ -24,8 +24,8 @@ public:
 	static void init(uint64_t virt_start, size_t max_size);
 	static void* malloc(size_t size);
 	static void free(void* p);
-	static void test();
 	static void handle_pg_fault(interrupt_state*, uint64_t addr);
+	static void test();
 
 private:
 	static mallocator_chunk* head;
