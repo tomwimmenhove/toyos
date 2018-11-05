@@ -232,7 +232,7 @@ uint64_t memory::get_phys(uint64_t virt)
 	return (pt[pte] & ~0xfff) | (virt & 0xfff);
 }
 
-void memory::handle_pg_fault(interrupt_state*, uint64_t addr)
+void memory::handle_pg_fault(interrupt_state*, uint64_t)
 {
-		map_page(addr & ~0xfff, frame_alloc->page());
+//		map_page(addr & ~0xfff, frame_alloc->page());
 }

@@ -33,7 +33,6 @@ void exception_page(interrupt_state* state, uint64_t addr)
 
 extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state)
 {
-	dbg << "Interrupt " << irq_num << " err_code: " << state->err_code << " at rip=" << state->rip << '\n';
 	switch (irq_num)
 	{
 		case 0x00: exception_div_by_zero(state); return;
@@ -58,6 +57,7 @@ extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state)
 		case 0x1e: exception_sec(state); return;
 		default: break;
 	}
+	dbg << "Interrupt " << irq_num << " err_code: " << state->err_code << " at rip=" << state->rip << '\n';
 }
 
 

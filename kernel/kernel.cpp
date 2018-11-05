@@ -37,8 +37,6 @@ void __attribute__ ((noinline)) test()
 
 void kmain()
 {
-	mallocator::init(0xffffa00000000000);
-
 	mallocator::test();
 
 
@@ -66,12 +64,10 @@ void kmain()
 		pp[i] = 65;
 	}
 
-	gdt_init();
-	idt_init();
 
 	test();
 
-	*(uint8_t*) 42 = 42;
+//	*(uint8_t*) 42 = 42;
 
 	dbg << "ints work\n";
 
@@ -90,12 +86,17 @@ extern "C"
 
 void _start(kernel_boot_info* kbi)
 {
+	_init();
+
 	if (kbi->magic != KBI_MAGIC)
 		panic("Bad magic number!");
 
-	memory::init(kbi);
+	gdt_init();
+	idt_init();
 
-	_init();
+	memory::init(kbi);
+	mallocator::init(0xffffa00000000000, 1024 * 1024 * 1024);
+
 	kmain();
 	_fini();
 

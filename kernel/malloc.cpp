@@ -2,12 +2,14 @@
 
 mallocator_chunk* mallocator::head;
 uint64_t mallocator::virt_start;
+uint64_t mallocator::max_size;
 
-void mallocator::init(uint64_t virt_start)
+void mallocator::init(uint64_t virt_start, size_t max_size)
 {
 	mallocator::virt_start = virt_start;
+	mallocator::max_size = max_size;
 
-	memory::map_page(virt_start, memory::frame_alloc->page());
+//	memory::map_page(virt_start, memory::frame_alloc->page());
 
 	head = (mallocator_chunk*) virt_start;
 
@@ -54,7 +56,7 @@ void* mallocator::malloc(size_t size)
 	uint64_t end_virt = (((uint64_t) &tail->data[tail->len - 1]) & ~0xfff) + 0x1000;
 	for (size_t i = 0; i < size; i += 0x1000)
 	{
-		memory::map_page(end_virt, memory::frame_alloc->page());
+//		memory::map_page(end_virt, memory::frame_alloc->page());
 		end_virt += 0x1000;
 	}
 
@@ -149,3 +151,10 @@ void mallocator::test()
 			panic("CORRUPTION");
 }
 
+void mallocator::handle_pg_fault(interrupt_state*, uint64_t addr)
+{
+	if (addr >= virt_start && addr < virt_start + max_size)
+	{
+		memory::map_page(addr & ~0xfff, memory::frame_alloc->page());
+	}
+}
