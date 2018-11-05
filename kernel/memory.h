@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "interrupts.h"
 
 extern "C"
 {
@@ -10,6 +11,7 @@ extern "C"
 }
 
 #include "debug.h"
+#include "sysregs.h"
 
 class frame_alloc_iface;
 class frame_alloc_bitmap;
@@ -22,6 +24,8 @@ public:
 	static void map_page(uint64_t virt, uint64_t phys);
 	static uint64_t get_phys(uint64_t virt);
 
+	static void handle_pg_fault(interrupt_state* state, uint64_t addr);
+
 	static frame_alloc_iface* frame_alloc;
 private:
 	static void setup_usage(multiboot_tag_mmap* mb_mmap_tag, uint64_t memtop);
@@ -29,23 +33,6 @@ private:
 	static void clean_page_tables();
 
 	static inline frame_alloc_bitmap* get_bitmap() { return reinterpret_cast<frame_alloc_bitmap*>(frame_alloc); }
-
-	static inline uint64_t cr3_get()
-	{
-		uint64_t ret;
-		asm volatile(   "mov %%cr3 , %0"
-				: "=r" (ret)
-				: :);
-		return ret;
-	}
-
-	static inline void cr3_set(uint64_t cr)
-	{
-		asm volatile(   "mov %0, %%cr3"
-				: : "r" (cr)
-				:);
-	}
-
 	static void clear_page(void* page);
 };
 

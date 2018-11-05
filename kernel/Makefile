@@ -44,8 +44,11 @@ gdt.o: gdt.cpp gdt.h descriptors.h
 idt.o: idt.cpp idt.h descriptors.h
 	$(CPP) $(CPPFLAGS) -c idt.cpp
 
-kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o irq_jump.o gdt.o idt.o
-	$(LD) $(LDFLAGS) irq_jump.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o gdt.o idt.o -o kernel.elf
+interrupts.o: interrupts.cpp interrupts.h
+	$(CPP) $(CPPFLAGS) -c interrupts.cpp
+
+kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o irq_jump.o gdt.o idt.o interrupts.o
+	$(LD) $(LDFLAGS) irq_jump.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o gdt.o idt.o interrupts.o -o kernel.elf
 
 clean:
 	rm -rf *.o kernel.elf

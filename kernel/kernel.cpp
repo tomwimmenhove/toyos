@@ -15,6 +15,7 @@ extern "C"
 #include "descriptors.h"
 #include "gdt.h"
 #include "idt.h"
+#include "interrupts.h"
 
 extern void* _data_end;
 extern void* _code_start;
@@ -27,34 +28,6 @@ extern "C" void __cxa_pure_virtual()
 void print_stack_use()
 {
 	dbg << "stack usuage: " << (KERNEL_STACK_TOP - (uint64_t) __builtin_frame_address(0)) << "\n";
-}
-
-struct __attribute__((packed)) interrupt_state
-{
-	uint64_t r15;
-	uint64_t r14;
-	uint64_t r13;
-	uint64_t r12;
-
-	uint64_t rdx;
-	uint64_t rcx;
-	uint64_t rax;
-
-	uint64_t rsi;
-	uint64_t rdi;
-
-	uint64_t err_code;
-
-	uint64_t rip;
-	uint64_t cs;
-	uint64_t rflags;
-	uint64_t rsp;
-	uint64_t ss;
-};
-
-extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state)
-{
-		dbg << "Interrupt " << irq_num << " err_code: " << state->err_code << " at rip=" << state->rip << '\n';
 }
 
 void __attribute__ ((noinline)) test()
@@ -97,6 +70,8 @@ void kmain()
 	idt_init();
 
 	test();
+
+//	*(uint8_t*) 42 = 42;
 
 	dbg << "ints work\n";
 
