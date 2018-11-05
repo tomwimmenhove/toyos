@@ -38,8 +38,14 @@ malloc.o: malloc.cpp malloc.h
 frame_alloc.o: frame_alloc.cpp frame_alloc.h memory.h
 	$(CPP) $(CPPFLAGS) -c frame_alloc.cpp
 
-kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o irq_jump.o
-	$(LD) $(LDFLAGS) irq_jump.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o -o kernel.elf
+gdt.o: gdt.cpp gdt.h descriptors.h
+	$(CPP) $(CPPFLAGS) -c gdt.cpp
+
+idt.o: idt.cpp idt.h descriptors.h
+	$(CPP) $(CPPFLAGS) -c idt.cpp
+
+kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o irq_jump.o gdt.o idt.o
+	$(LD) $(LDFLAGS) irq_jump.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o gdt.o idt.o -o kernel.elf
 
 clean:
 	rm -rf *.o kernel.elf

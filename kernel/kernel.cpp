@@ -12,7 +12,9 @@ extern "C"
 #include "memory.h"
 #include "malloc.h"
 #include "frame_alloc.h"
-#include "desctiptors.h"
+#include "descriptors.h"
+#include "gdt.h"
+#include "idt.h"
 
 extern void* _data_end;
 extern void* _code_start;
@@ -21,8 +23,6 @@ extern "C" void __cxa_pure_virtual()
 {
 	panic("Virtual method called");
 }
-
-unsigned char answer = 65;
 
 void print_stack_use()
 {
@@ -62,35 +62,6 @@ void __attribute__ ((noinline)) test()
 		asm("int $42");
 }
 
-extern "C" void irq_0();
-extern "C" void do_test();
-
-
-struct __attribute__((packed)) gdt_ptr
-{
-	        uint16_t size;
-			        uint64_t* base;
-};
-
-/* GDT */
-desc_null kernel_null_descriptor;
-desc_code_seg kernel_code_segment_descriptor { false, 0, true, true, false };
-desc_data_seg kernel_data_segment_descriptor { 0, true, 0, true };
-desc_code_seg interrupt_code_segment_descriptor { false, 0, true, true, false };
-
-gdt_entry descs[] = {
-	kernel_null_descriptor,				// 0x00
-	kernel_code_segment_descriptor,		// 0x08
-	kernel_data_segment_descriptor,		// 0x10
-	interrupt_code_segment_descriptor,	// 0x18
-};
-
-desc_ptr gdt_ptr { descs, sizeof(descs) };
-
-/* IDT */
-idt_entry idt[256];
-desc_ptr idt_ptr { idt, sizeof(idt) };
-
 void kmain()
 {
 	mallocator malor(0xffffa00000000000);
@@ -122,29 +93,8 @@ void kmain()
 		pp[i] = 65;
 	}
 
-	gdt_ptr.lgdt();
-
-	/* Load the code and data segment */
-	asm volatile(	"sub $16, %%rsp\n"				// Make space
-					"movq $0x8, 8(%%rsp)\n"			// Set code segment
-					"movabsq $jmp_lbl, %%rax\n"		// Set return address (label)...
-					"mov %%rax, (%%rsp)\n"			// ... at stack pointer
-					"lretq\n"						// Jump
-					"jmp_lbl:\n"
-					
-					"mov $0x10, %%ecx\n"			// Load the data segment
-					"mov %%ecx, %%ds\n"				// Stick it in all data-seg regs
-					"mov %%ecx, %%es\n"
-					"mov %%ecx, %%fs\n"
-					"mov %%ecx, %%gs\n"
-					"mov %%ecx, %%ss\n"
-					: : : "%ecx");
-
-	/* Fill IDT entries */
-	for (int i = 0; i < 256; i++)
-		idt[i] = idt_entry(((uint64_t) &irq_0) + i * 0x10, 0x18, 0, 0x8e);
-
-	idt_ptr.lidt();
+	gdt_init();
+	idt_init();
 
 	test();
 
