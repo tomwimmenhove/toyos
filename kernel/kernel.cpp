@@ -16,6 +16,7 @@ extern "C"
 #include "gdt.h"
 #include "idt.h"
 #include "interrupts.h"
+#include "pic.h"
 
 extern void* _data_end;
 extern void* _code_start;
@@ -33,6 +34,17 @@ void print_stack_use()
 void __attribute__ ((noinline)) test()
 {
 		asm("int $42");
+}
+
+void interrupt_timer(uint64_t, interrupt_state*)
+{
+	dbg << '.';
+}
+
+void interrupt_kb(uint64_t, interrupt_state*)
+{
+	uint8_t ch = inb_p(0x60);
+	dbg << "key: " << ch << '\n';
 }
 
 void kmain()
@@ -64,14 +76,20 @@ void kmain()
 		pp[i] = 65;
 	}
 
-
 	test();
 
 //	*(uint8_t*) 42 = 42;
 
-	dbg << "ints work\n";
+	interrupts::regist(0x20, interrupt_timer);
+	interrupts::regist(0x21, interrupt_kb);
 
-	for(;;) asm volatile ("hlt");
+	dbg << "ints work\n";
+	asm volatile("sti");
+
+	for(;;)
+	{
+		asm volatile ("hlt\nhlt\nhlt\nhlt");
+	}
 
 	die();
 }

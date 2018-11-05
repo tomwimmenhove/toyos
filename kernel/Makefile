@@ -20,8 +20,8 @@ crti.o: crti.S
 crtn.o: crtn.S
 	$(AS) -c crtn.S -o crtn.o
 
-irq_jump.o: irq_jump.S
-	$(AS) -c irq_jump.S -o irq_jump.o
+interrupt_jump.o: interrupt_jump.S
+	$(AS) -c interrupt_jump.S -o interrupt_jump.o
 
 debug_out.o: ../common/debug_out.c ../common/debug_out.h
 	$(CC) $(CFLAGS) -c ../common/debug_out.c
@@ -47,8 +47,11 @@ idt.o: idt.cpp idt.h descriptors.h
 interrupts.o: interrupts.cpp interrupts.h
 	$(CPP) $(CPPFLAGS) -c interrupts.cpp
 
-kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o irq_jump.o gdt.o idt.o interrupts.o
-	$(LD) $(LDFLAGS) irq_jump.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o gdt.o idt.o interrupts.o -o kernel.elf
+pic.o: pic.cpp pic.h
+	$(CPP) $(CPPFLAGS) -c pic.cpp
+
+kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o interrupt_jump.o gdt.o idt.o interrupts.o pic.o
+	$(LD) $(LDFLAGS) interrupt_jump.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o gdt.o idt.o interrupts.o pic.o -o kernel.elf
 
 clean:
 	rm -rf *.o kernel.elf

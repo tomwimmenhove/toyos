@@ -3,61 +3,46 @@
 #include "memory.h"
 #include "malloc.h"
 #include "sysregs.h"
+#include "pic.h"
 
-void exception_div_by_zero(interrupt_state*){ panic("exception_div_by_zero"); }
-void exception_debug(interrupt_state*){ panic("exception_debug"); }
-void exception_nmi(interrupt_state*){ panic("exception_nmi"); }
-void exception_breakpoint(interrupt_state*){ panic("exception_breakpoint"); }
-void exception_ovf(interrupt_state*){ panic("exception_ovf"); }
-void exception_bound(interrupt_state*){ panic("exception_bound"); }
-void exception_ill(interrupt_state*){ panic("exception_ill"); }
-void exception_dev_not_avail(interrupt_state*){ panic("exception_dev_not_avail"); }
-void exception_double(interrupt_state*){ panic("exception_double"); }
-void exception_invalid_tss(interrupt_state*){ panic("exception_invalid_tss"); }
-void exception_seg_not_present(interrupt_state*){ panic("exception_seg_not_present"); }
-void exception_stack_seg(interrupt_state*){ panic("exception_stack_seg"); }
-void exception_gp(interrupt_state*){ panic("exception_gp"); }
-void exception_fp(interrupt_state*){ panic("exception_fp"); }
-void exception_align(interrupt_state*){ panic("exception_align"); }
-void exception_mach_chk(interrupt_state*){ panic("exception_mach_chk"); }
-void exception_simd_fp(interrupt_state*){ panic("exception_simd_fp"); }
-void exception_virt(interrupt_state*){ panic("exception_virt"); }
-void exception_sec(interrupt_state*){ panic("exception_sec"); }
-
-void exception_page(interrupt_state* state, uint64_t addr)
+extern "C" void exception_unhandled(exception_state*){ panic("exception_unhandled"); }
+extern "C" void exception_div_by_zero(exception_state*){ panic("exception_div_by_zero"); }
+extern "C" void exception_debug(exception_state*){ panic("exception_debug"); }
+extern "C" void exception_nmi(exception_state*){ panic("exception_nmi"); }
+extern "C" void exception_breakpoint(exception_state*){ panic("exception_breakpoint"); }
+extern "C" void exception_ovf(exception_state*){ panic("exception_ovf"); }
+extern "C" void exception_bound(exception_state*){ panic("exception_bound"); }
+extern "C" void exception_ill(exception_state*){ panic("exception_ill"); }
+extern "C" void exception_dev_not_avail(exception_state*){ panic("exception_dev_not_avail"); }
+extern "C" void exception_double(exception_state*){ panic("exception_double"); }
+extern "C" void exception_invalid_tss(exception_state*){ panic("exception_invalid_tss"); }
+extern "C" void exception_seg_not_present(exception_state*){ panic("exception_seg_not_present"); }
+extern "C" void exception_stack_seg(exception_state*){ panic("exception_stack_seg"); }
+extern "C" void exception_gp(exception_state*){ panic("exception_gp"); }
+extern "C" void exception_fp(exception_state*){ panic("exception_fp"); }
+extern "C" void exception_align(exception_state*){ panic("exception_align"); }
+extern "C" void exception_mach_chk(exception_state*){ panic("exception_mach_chk"); }
+extern "C" void exception_simd_fp(exception_state*){ panic("exception_simd_fp"); }
+extern "C" void exception_virt(exception_state*){ panic("exception_virt"); }
+extern "C" void exception_sec(exception_state*){ panic("exception_sec"); }
+extern "C" void exception_page(exception_state* state)
 {
-	dbg << "exception_page: err_code=" << state->err_code << " addr=" << addr << '\n';
+	uint64_t addr = cr2_get();
+	dbg << "exception_page: rip=" << state->iregs.rip << " addr=" << addr << '\n';
 	memory::handle_pg_fault(state, addr);
 	mallocator::handle_pg_fault(state, addr);
 }
 
+interrupts::irq_handler interrupts::irq_handlers[256];
+
+extern "C" void interrupt_pic(int irq_num);
 extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state)
 {
-	switch (irq_num)
-	{
-		case 0x00: exception_div_by_zero(state); return;
-		case 0x01: exception_debug(state); return;
-		case 0x02: exception_nmi(state); return;
-		case 0x03: exception_breakpoint(state); return;
-		case 0x04: exception_ovf(state); return;
-		case 0x05: exception_bound(state); return;
-		case 0x06: exception_ill(state); return;
-		case 0x07: exception_dev_not_avail(state); return;
-		case 0x08: exception_double(state); return;
-		case 0x0a: exception_invalid_tss(state); return;
-		case 0x0b: exception_seg_not_present(state); return;
-		case 0x0c: exception_stack_seg(state); return;
-		case 0x0d: exception_gp(state); return;
-		case 0x0e: exception_page(state, cr2_get()); return;
-		case 0x10: exception_fp(state); return;
-		case 0x11: exception_align(state); return;
-		case 0x12: exception_mach_chk(state); return;
-		case 0x13: exception_simd_fp(state); return;
-		case 0x14: exception_virt(state); return;
-		case 0x1e: exception_sec(state); return;
-		default: break;
-	}
-	dbg << "Interrupt " << irq_num << " err_code: " << state->err_code << " at rip=" << state->rip << '\n';
+//	dbg << "Interrupt " << irq_num << " at rip=" << state->iregs.rip << '\n';
+
+	interrupts::handle(irq_num, state);
+
+	pic_sys.eoi(irq_num);
 }
 
 

@@ -94,7 +94,7 @@ void mallocator::free(void* p)
 	die();
 }
 
-void mallocator::handle_pg_fault(interrupt_state*, uint64_t addr)
+void mallocator::handle_pg_fault(exception_state*, uint64_t addr)
 {
 	/* Map the page if it's our's */
 	if (addr >= virt_start && addr < virt_start + max_size)
