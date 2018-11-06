@@ -87,8 +87,8 @@ void kmain()
 	pic_sys.enable(0x21);
 //	pic_sys.pic1.set_mask(0x00);
 
-	interrupts::regist(0x20, interrupt_timer);
-	interrupts::regist(0x21, interrupt_kb);
+	interrupts::regist(pic_sys.to_intr(0), interrupt_timer);
+	interrupts::regist(pic_sys.to_intr(1), interrupt_kb);
 	interrupts::regist(42, interrupt_42);
 
 	test();

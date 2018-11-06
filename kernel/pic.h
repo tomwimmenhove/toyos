@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "io.h"
+#include "irq.h"
 
 template<uint8_t IO>
 struct pic
@@ -54,7 +55,7 @@ private:
 	}
 };
 
-struct at_pic_sys
+struct at_pic_sys : public irq
 {
 	void disable(uint8_t intr)
 	{
@@ -73,6 +74,8 @@ struct at_pic_sys
 	}
 
 	void eoi(int irq_num);
+
+	uint8_t to_intr(uint8_t irq) override { return irq + 0x20; }
 
 private:
 	pic<0x20> pic1
