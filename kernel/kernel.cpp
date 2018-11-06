@@ -36,6 +36,11 @@ void __attribute__ ((noinline)) test()
 		asm("int $42");
 }
 
+void interrupt_42(uint64_t irq_num, interrupt_state* state)
+{
+	dbg << "Interrupt " << irq_num << " at rip=" << state->iregs.rip << '\n';
+}
+
 void interrupt_timer(uint64_t, interrupt_state*)
 {
 	dbg << '.';
@@ -76,12 +81,17 @@ void kmain()
 		pp[i] = 65;
 	}
 
-	test();
-
 //	*(uint8_t*) 42 = 42;
+
+	pic_sys.disable(0x21);
+	pic_sys.enable(0x21);
+//	pic_sys.pic1.set_mask(0x00);
 
 	interrupts::regist(0x20, interrupt_timer);
 	interrupts::regist(0x21, interrupt_kb);
+	interrupts::regist(42, interrupt_42);
+
+	test();
 
 	dbg << "ints work\n";
 	asm volatile("sti");
