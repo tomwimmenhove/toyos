@@ -17,6 +17,7 @@ extern "C"
 #include "idt.h"
 #include "interrupts.h"
 #include "pic.h"
+#include "console.h"
 
 extern void* _data_end;
 extern void* _code_start;
@@ -89,11 +90,18 @@ void kmain()
 
 	memory::map_page(virt, phys);
 
+#if 0
 	volatile unsigned char* pp = (unsigned char*) virt;
 	for (int i = 0; i < 4096; i++)
 	{
 		pp[i] = 65;
 	}
+#endif
+
+	con.init();
+	for (int i = 0 ; i < 50; i++)
+		con.write_string("1 Hello\n2 world\n3 And stuff\n4 bye\n");
+
 
 //	*(uint8_t*) 42 = 42;
 
