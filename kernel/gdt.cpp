@@ -11,7 +11,7 @@ static desc_code_seg interrupt_code_segment_descriptor { false, 0, true, true, f
 static desc_code_seg user_code_segment_descriptor { false, 3, true, true, false };
 static desc_data_seg user_data_segment_descriptor { 0, true, 3, true };
 
-tss tss0;
+tss tss0 { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 static desc_tss desc_tss0 { &tss0, 3, true };
 

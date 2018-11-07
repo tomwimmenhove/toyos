@@ -21,9 +21,11 @@ struct __attribute__((packed)) tss
 	uint64_t ist6;
 	uint64_t ist7;
 
-	uint64_t reserved4;
+	uint64_t reserved3;
 
-	uint64_t iopb;
+	/* Is this part right? */
+	uint16_t reserved4;
+	uint16_t io_map_base;
 };
 
 

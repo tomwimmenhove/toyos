@@ -38,6 +38,8 @@ void __attribute__ ((noinline)) test()
 
 void interrupt_42(uint64_t irq_num, interrupt_state* state)
 {
+//	(void) irq_num; (void) state;
+//	for (;;);
 	dbg << "Interrupt " << irq_num << " at rip=" << state->iregs.rip << '\n';
 }
 
@@ -54,12 +56,15 @@ void interrupt_kb(uint64_t, interrupt_state*)
 
 void user_space()
 {
-//	dbg << "Hello world\n";
+	asm("int $42");
+
 	for (;;) ;
+//	dbg << "Hello world\n";
 	
 //	for (;;) asm volatile("cli\nhlt");
 }
 
+volatile uint8_t stack[256];
 
 void kmain()
 {
@@ -92,26 +97,32 @@ void kmain()
 
 //	*(uint8_t*) 42 = 42;
 
-	pic_sys.disable(0x21);
-	pic_sys.enable(0x21);
+	pic_sys.disable(0x20);
+//	pic_sys.enable(0x21);
 //	pic_sys.pic1.set_mask(0x00);
 
 	interrupts::regist(pic_sys.to_intr(0), interrupt_timer);
 	interrupts::regist(pic_sys.to_intr(1), interrupt_kb);
 	interrupts::regist(42, interrupt_42);
 
-	test();
+	
+
+//	test();
 
 	/* Load TSS0 */
-//	asm volatile("mov $0x20, %%ax\n"
-//			"ltr %%ax"
-//			::: "%ax");
+	asm volatile("mov $0x20, %%ax\n"
+	"ltr %%ax"
+	::: "%ax");
+
+	tss0.rsp0 = ((uint64_t) stack) + sizeof(stack);
 
 	dbg << "after\n";
 
+	pic_sys.sti();
+
+//	for(;;);
 	/* Never return from this */
 	asm volatile(
-//			"mov $0x38, %%ax\n"
 			"mov $0x3b, %%ax\n"
 			"mov %%ax, %%ds\n"
 			"mov %%ax, %%es\n"
@@ -120,35 +131,20 @@ void kmain()
 
 			"mov %%rsp, %%rax\n"
 
-//			"pushq $0x38\n"	// data seg
 			"pushq $0x3b\n"	// data seg
 			"pushq %%rax\n"	// stack pointer
-//			"pushq $0\n" 	// RFLAGS CHECK WHAT IT IS
-			"pushq $2\n" 	// RFLAGS CHECK WHAT IT IS
-//			"pushfq\n" 		// Push flags
-//			"pushq $0x30\n"	// code seg
+//			"pushq $2\n" 	// XXX: Check what flags we need?
+			"pushfq\n" 		// Push flags
 			"pushq $0x33\n"	// code seg
-
-//			"mov $fak2, %%rbx\n"
 
 			"pushq %%rbx\n"	// pointer
 
 			"iretq\n"
-
-			"fak: jmp fak\n"
-
-			"fak2:\n"
-			"hlt\n"
-			"jmp fak2\n"
-
 			:
 			: "b" (&user_space)
-//			: "b" (&notting)
 			:
 			);
 
-
-	asm volatile("sti");
 
 	for(;;)
 	{
