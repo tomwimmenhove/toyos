@@ -182,23 +182,23 @@ void memory::map_page(uint64_t virt, uint64_t phys)
 
 	if (!(pml4[pml4e] & 1))
 	{
-		pml4[pml4e] = (uint64_t) frame_alloc->page() | 3;
+		pml4[pml4e] = (uint64_t) frame_alloc->page() | 7;
 		clear_page((void*) pdp);
 	}
 
 	if (!(pdp[pdpe] & 1))
 	{
-		pdp[pdpe] = (uint64_t) frame_alloc->page() | 3;
+		pdp[pdpe] = (uint64_t) frame_alloc->page() | 7;
 		clear_page((void*) pd);
 	}
 
 	if (!(pd[pde] & 1))
 	{
-		pd[pde] = (uint64_t) frame_alloc->page() | 3;
+		pd[pde] = (uint64_t) frame_alloc->page() | 7;
 		clear_page((void*) pt);
 	}
 
-	pt[pte] = phys | 3;
+	pt[pte] = phys | 7;
 }
 
 void memory::clear_page(void* page)

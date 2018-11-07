@@ -52,6 +52,15 @@ void interrupt_kb(uint64_t, interrupt_state*)
 	dbg << "key: " << ch << '\n';
 }
 
+void user_space()
+{
+//	dbg << "Hello world\n";
+	for (;;) ;
+	
+//	for (;;) asm volatile("cli\nhlt");
+}
+
+
 void kmain()
 {
 	mallocator::test();
@@ -93,7 +102,52 @@ void kmain()
 
 	test();
 
-	dbg << "ints work\n";
+	/* Load TSS0 */
+//	asm volatile("mov $0x20, %%ax\n"
+//			"ltr %%ax"
+//			::: "%ax");
+
+	dbg << "after\n";
+
+	/* Never return from this */
+	asm volatile(
+//			"mov $0x38, %%ax\n"
+			"mov $0x3b, %%ax\n"
+			"mov %%ax, %%ds\n"
+			"mov %%ax, %%es\n"
+			"mov %%ax, %%fs\n"
+			"mov %%ax, %%gs\n"
+
+			"mov %%rsp, %%rax\n"
+
+//			"pushq $0x38\n"	// data seg
+			"pushq $0x3b\n"	// data seg
+			"pushq %%rax\n"	// stack pointer
+//			"pushq $0\n" 	// RFLAGS CHECK WHAT IT IS
+			"pushq $2\n" 	// RFLAGS CHECK WHAT IT IS
+//			"pushfq\n" 		// Push flags
+//			"pushq $0x30\n"	// code seg
+			"pushq $0x33\n"	// code seg
+
+//			"mov $fak2, %%rbx\n"
+
+			"pushq %%rbx\n"	// pointer
+
+			"iretq\n"
+
+			"fak: jmp fak\n"
+
+			"fak2:\n"
+			"hlt\n"
+			"jmp fak2\n"
+
+			:
+			: "b" (&user_space)
+//			: "b" (&notting)
+			:
+			);
+
+
 	asm volatile("sti");
 
 	for(;;)

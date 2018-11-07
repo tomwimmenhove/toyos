@@ -18,7 +18,11 @@ extern "C" void exception_double(exception_state*){ panic("exception_double"); }
 extern "C" void exception_invalid_tss(exception_state*){ panic("exception_invalid_tss"); }
 extern "C" void exception_seg_not_present(exception_state*){ panic("exception_seg_not_present"); }
 extern "C" void exception_stack_seg(exception_state*){ panic("exception_stack_seg"); }
-extern "C" void exception_gp(exception_state*){ panic("exception_gp"); }
+extern "C" void exception_gp(exception_state* state)
+{
+	dbg << "GP fault with err_code=" << state->err_code << '\n';
+	panic("exception_gp");
+}
 extern "C" void exception_fp(exception_state*){ panic("exception_fp"); }
 extern "C" void exception_align(exception_state*){ panic("exception_align"); }
 extern "C" void exception_mach_chk(exception_state*){ panic("exception_mach_chk"); }
