@@ -50,8 +50,11 @@ interrupts.o: interrupts.cpp interrupts.h
 pic.o: pic.cpp pic.h
 	$(CPP) $(CPPFLAGS) -c pic.cpp
 
-kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o interrupt_jump.o gdt.o idt.o interrupts.o pic.o
-	$(LD) $(LDFLAGS) interrupt_jump.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o gdt.o idt.o interrupts.o pic.o -o kernel.elf
+console.o: console.cpp console.h
+	$(CPP) $(CPPFLAGS) -c console.cpp
+
+kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o interrupt_jump.o gdt.o idt.o interrupts.o pic.o console.o
+	$(LD) $(LDFLAGS) interrupt_jump.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o gdt.o idt.o interrupts.o pic.o console.o -o kernel.elf
 
 clean:
 	rm -rf *.o kernel.elf

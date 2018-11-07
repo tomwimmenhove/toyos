@@ -36,7 +36,7 @@ void memory::init(kernel_boot_info* kbi)
 	for (entry = mb_mmap_tag->entries; entry < entry_end; entry = mb_next(entry, mb_mmap_tag))
 	{
 		const char *typeNames[] = { "Unknown", "available", "reserved", "ACPI reclaimable", "NVS", "\"bad ram\""};
-		dbg << "Memory region " <<  entry->addr << " with length: " << entry->len << " of type " << typeNames[entry->type] << '\n';
+		con << "Memory region " <<  entry->addr << " with length: " << entry->len << " of type " << typeNames[entry->type] << '\n';
 
 		if (entry->type == MULTIBOOT_MEMORY_AVAILABLE)
 		{
@@ -49,8 +49,8 @@ void memory::init(kernel_boot_info* kbi)
 			}
 		}
 	}
-	dbg << "Top of ram " << top <<'\n';
-	dbg << "Total ram " << total_ram << '\n';
+	con << "Top of ram " << top <<'\n';
+	con << "Total ram " << total_ram << '\n';
 
 	if (!largest_region_len)
 		panic("No space found for physical memory page frame_alloc_bitmap");
@@ -87,6 +87,18 @@ void memory::init(kernel_boot_info* kbi)
 	setup_usage(mb_mmap_tag, top);
 }
 
+void memory::unmap_unused()
+{
+	volatile uint64_t* pml4 = (uint64_t*) PG_PML4;
+
+	/* We can simply unmap everything in the lower half */
+	for (int i = 0; i < 0x100; i++)
+		pml4[i] = 0;
+
+	/* Burtally invalidate all TLB cache */
+	cr3_set(cr3_get());
+}
+
 void memory::clean_page_tables()
 {
 	/* A place to temporarily map physical pages to */
@@ -117,13 +129,6 @@ void memory::clean_page_tables()
 			}
 		}
 	}
-
-	/* We can simply unmap everything in the lower half */
-	for (int i = 0; i < 0x100; i++)
-		pml4[i] = 0;
-
-	/* Burtally invalidate all TLB cache */
-	cr3_set(cr3_get());
 }
 
 void memory::setup_usage(multiboot_tag_mmap* mb_mmap_tag, uint64_t memtop)

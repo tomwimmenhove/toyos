@@ -11,10 +11,10 @@ image.iso:
 	grub-mkrescue -o image.iso iso/
 
 simu: all
-	qemu-system-x86_64 -device isa-debug-exit,iobase=0xf4,iosize=0x04 -drive file=image.iso,format=raw -debugcon stdio -s -monitor unix:qemu.mon,server,nowait
+	qemu-system-x86_64 -enable-kvm -device isa-debug-exit,iobase=0xf4,iosize=0x04 -drive file=image.iso,format=raw -debugcon stdio -s -monitor unix:qemu.mon,server,nowait
 
 simugdb: all
-	qemu-system-x86_64 -device isa-debug-exit,iobase=0xf4,iosize=0x04 -drive file=image.iso,format=raw -debugcon stdio -s -monitor unix:qemu.mon,server,nowait -S
+	qemu-system-x86_64 -enable-kvm -device isa-debug-exit,iobase=0xf4,iosize=0x04 -drive file=image.iso,format=raw -debugcon stdio -s -monitor unix:qemu.mon,server,nowait -S
 
 monitor:
 	minicom -D unix\#qemu.mon

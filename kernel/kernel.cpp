@@ -6,7 +6,7 @@ extern "C"
 	#include "../common/config.h"
 }
 
-#include "debug.h"
+//#include "debug.h"
 #include "new.h"
 #include "mb.h"
 #include "memory.h"
@@ -17,6 +17,7 @@ extern "C"
 #include "idt.h"
 #include "interrupts.h"
 #include "pic.h"
+#include "console.h"
 
 extern void* _data_end;
 extern void* _code_start;
@@ -28,7 +29,7 @@ extern "C" void __cxa_pure_virtual()
 
 void print_stack_use()
 {
-	dbg << "stack usuage: " << (KERNEL_STACK_TOP - (uint64_t) __builtin_frame_address(0)) << "\n";
+	con << "stack usuage: " << (KERNEL_STACK_TOP - (uint64_t) __builtin_frame_address(0)) << "\n";
 }
 
 void __attribute__ ((noinline)) test()
@@ -36,32 +37,66 @@ void __attribute__ ((noinline)) test()
 		asm("int $42");
 }
 
-void interrupt_42(uint64_t irq_num, interrupt_state* state)
+extern "C" void syscall1(uint64_t a);
+extern "C" void syscall2(uint64_t a, uint64_t b);
+extern "C" void syscall3(uint64_t a, uint64_t b, uint64_t c);
+extern "C" void syscall4(uint64_t a, uint64_t b, uint64_t c, uint64_t d);
+extern "C" void syscall5(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e);
+extern "C" void syscall6(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e, uint64_t f);
+asm(
+		"syscall:\n"
+		"syscall1:\n"
+		"syscall2:\n"
+		"syscall3:\n"
+		"syscall4:\n"
+		"syscall5:\n"
+		"syscall6:\n"
+		"int $42\n"
+		"ret\n");
+
+
+void intr_syscall(uint64_t, interrupt_state* state)
 {
-//	(void) irq_num; (void) state;
-//	for (;;);
-	dbg << "Interrupt " << irq_num << " at rip=" << state->iregs.rip << '\n';
+	switch(state->rdi)
+	{
+		case 0:
+			con.write_string((const char*) state->rsi);
+			break;
+		case 1:
+			con.putc(state->rsi);
+			break;
+		case 2:
+			asm volatile(
+					"sti\n"
+					"hlt");
+			break;
+	}
 }
 
 void interrupt_timer(uint64_t, interrupt_state*)
 {
-	dbg << '.';
+//	con << ".";
 }
 
 void interrupt_kb(uint64_t, interrupt_state*)
 {
 	uint8_t ch = inb_p(0x60);
-	dbg << "key: " << ch << '\n';
+	con << "key: " << (long long int) ch << "\n";
 }
 
 void user_space()
 {
-	asm("int $42");
+	for (int i = 0; i < 10; i++)
+		ucon << i << ' ';
 
-	for (;;) ;
-//	dbg << "Hello world\n";
-	
-//	for (;;) asm volatile("cli\nhlt");
+	ucon << '\n';
+
+	for (;;)
+	{
+		for (int i = 0; i < 18; i++)
+			syscall1(2); // halt
+		ucon << '.';
+	}
 }
 
 volatile uint8_t stack[256];
@@ -69,7 +104,6 @@ volatile uint8_t stack[256];
 void kmain()
 {
 	mallocator::test();
-
 
 #if 0
 	// XXX: Just a test!
@@ -84,26 +118,9 @@ void kmain()
 		pppp[i] = 0x41414141;
 #endif
 
-	uint64_t phys = 0xb8000;
-	uint64_t virt = 0xffffffff40000000 - 0x1000;
-
-	memory::map_page(virt, phys);
-
-	volatile unsigned char* pp = (unsigned char*) virt;
-	for (int i = 0; i < 4096; i++)
-	{
-		pp[i] = 65;
-	}
-
-//	*(uint8_t*) 42 = 42;
-
-	pic_sys.disable(0x20);
-//	pic_sys.enable(0x21);
-//	pic_sys.pic1.set_mask(0x00);
-
 	interrupts::regist(pic_sys.to_intr(0), interrupt_timer);
 	interrupts::regist(pic_sys.to_intr(1), interrupt_kb);
-	interrupts::regist(42, interrupt_42);
+	interrupts::regist(42, intr_syscall);
 
 	
 
@@ -115,8 +132,6 @@ void kmain()
 	::: "%ax");
 
 	tss0.rsp0 = ((uint64_t) stack) + sizeof(stack);
-
-	dbg << "after\n";
 
 	pic_sys.sti();
 
@@ -169,10 +184,25 @@ void _start(kernel_boot_info* kbi)
 	if (kbi->magic != KBI_MAGIC)
 		panic("Bad magic number!");
 
+	con.init();
+	con << "\n";
+
 	gdt_init();
 	idt_init();
 
 	memory::init(kbi);
+
+	/* Map vide text buffer into memory */
+	uint64_t video_base = 0xffffffff40000000 - 0x1000;
+	memory::map_page(video_base, 0xb8000);
+	con.base = (uint8_t*) video_base;
+
+	con << "Video ram remapped\n";
+
+	/* Unmap unused memmory */
+	memory::unmap_unused();
+
+
 	mallocator::init(0xffffa00000000000, 1024 * 1024 * 1024);
 
 	kmain();

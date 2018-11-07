@@ -5,12 +5,9 @@ extern "C"
 
 #include "frame_alloc.h"
 #include"mb.h"
-#include "debug.h"
 
 extern void* _data_end;
 extern void* _code_start;
-
-void die();
 
 /* frame_alloc_dumb */
 uint64_t frame_alloc_dumb::page()

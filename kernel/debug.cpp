@@ -1,4 +1,6 @@
 #include "debug.h"
+#include "console.h"
+/*
 extern "C"
 {
 	#include "../common/debug_out.h"
@@ -59,7 +61,7 @@ debug_out& debug_out::operator<< (long long unsigned int llu)
 	put_hex_long(llu);
 	return *this;
 }
-
+*/
 void die()
 {
 	asm volatile("cli");
@@ -76,7 +78,7 @@ void die()
 
 void panic(const char* msg)
 {
-	dbg << "KERNEL PANIC: " << msg << "\nHalted.";;
+	con << "KERNEL PANIC: " << msg << "\nHalted.";;
 	die();
 }
 

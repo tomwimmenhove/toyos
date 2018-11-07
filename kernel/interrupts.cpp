@@ -20,7 +20,7 @@ extern "C" void exception_seg_not_present(exception_state*){ panic("exception_se
 extern "C" void exception_stack_seg(exception_state*){ panic("exception_stack_seg"); }
 extern "C" void exception_gp(exception_state* state)
 {
-	dbg << "GP fault with err_code=" << state->err_code << '\n';
+	con << "GP fault with err_code=" << state->err_code << '\n';
 	panic("exception_gp");
 }
 extern "C" void exception_fp(exception_state*){ panic("exception_fp"); }
@@ -32,7 +32,7 @@ extern "C" void exception_sec(exception_state*){ panic("exception_sec"); }
 extern "C" void exception_page(exception_state* state)
 {
 	uint64_t addr = cr2_get();
-	dbg << "exception_page: rip=" << state->iregs.rip << " addr=" << addr << '\n';
+	con << "exception_page: rip=0x" << hex_u64(state->iregs.rip) << " addr=0x" << hex_u64(addr) << '\n';
 	memory::handle_pg_fault(state, addr);
 	mallocator::handle_pg_fault(state, addr);
 }
@@ -42,7 +42,7 @@ interrupts::irq_handler interrupts::irq_handlers[256];
 extern "C" void interrupt_pic(int irq_num);
 extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state)
 {
-//	dbg << "Interrupt " << irq_num << " at rip=" << state->iregs.rip << '\n';
+//	con << "Interrupt " << irq_num << " at rip=" << state->iregs.rip << '\n';
 
 	interrupts::handle(irq_num, state);
 
