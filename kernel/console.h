@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "config.h"
+
 struct console;
 
 struct formatter
@@ -66,7 +68,7 @@ struct console_x86 : public console
 		: base(base), w(w), h(h), pos(0)
 	{ }
 
-	void init();
+	void init(kernel_boot_info* kbi);
 
 	void putc(char ch) override;
 	void write_string(const char* s) override;

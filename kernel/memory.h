@@ -30,7 +30,6 @@ public:
 	static frame_alloc_iface* frame_alloc;
 private:
 	static void setup_usage(multiboot_tag_mmap* mb_mmap_tag, uint64_t memtop);
-	static multiboot_tag_mmap* get_mem_map(kernel_boot_info* kbi);
 	static void clean_page_tables();
 
 	static inline frame_alloc_bitmap* get_bitmap() { return reinterpret_cast<frame_alloc_bitmap*>(frame_alloc); }

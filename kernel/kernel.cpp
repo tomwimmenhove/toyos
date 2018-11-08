@@ -1,12 +1,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
-extern "C"
-{
-	#include "../common/config.h"
-}
-
-//#include "debug.h"
+#include "config.h"
+#include "linker.h"
 #include "new.h"
 #include "mb.h"
 #include "memory.h"
@@ -18,9 +14,7 @@ extern "C"
 #include "interrupts.h"
 #include "pic.h"
 #include "console.h"
-
-extern void* _data_end;
-extern void* _code_start;
+#include "syscall.h"
 
 extern "C" void __cxa_pure_virtual()
 {
@@ -36,24 +30,6 @@ void __attribute__ ((noinline)) test()
 {
 		asm("int $42");
 }
-
-extern "C" void syscall1(uint64_t a);
-extern "C" void syscall2(uint64_t a, uint64_t b);
-extern "C" void syscall3(uint64_t a, uint64_t b, uint64_t c);
-extern "C" void syscall4(uint64_t a, uint64_t b, uint64_t c, uint64_t d);
-extern "C" void syscall5(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e);
-extern "C" void syscall6(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e, uint64_t f);
-asm(
-		"syscall:\n"
-		"syscall1:\n"
-		"syscall2:\n"
-		"syscall3:\n"
-		"syscall4:\n"
-		"syscall5:\n"
-		"syscall6:\n"
-		"int $42\n"
-		"ret\n");
-
 
 void intr_syscall(uint64_t, interrupt_state* state)
 {
@@ -94,7 +70,7 @@ void user_space()
 	for (;;)
 	{
 		for (int i = 0; i < 18; i++)
-			syscall1(2); // halt
+			syscall(2); // halt
 		ucon << '.';
 	}
 }
@@ -184,7 +160,7 @@ void _start(kernel_boot_info* kbi)
 	if (kbi->magic != KBI_MAGIC)
 		panic("Bad magic number!");
 
-	con.init();
+	con.init(kbi);
 	con << "\n";
 
 	gdt_init();

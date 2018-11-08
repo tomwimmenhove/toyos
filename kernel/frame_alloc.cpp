@@ -1,13 +1,7 @@
-extern "C"
-{
-	#include "../common/config.h"
-}
-
+#include "config.h"
 #include "frame_alloc.h"
-#include"mb.h"
-
-extern void* _data_end;
-extern void* _code_start;
+#include "mb.h"
+#include "linker.h"
 
 /* frame_alloc_dumb */
 uint64_t frame_alloc_dumb::page()

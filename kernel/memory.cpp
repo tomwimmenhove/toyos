@@ -3,28 +3,22 @@
 #include "new.h"
 #include "frame_alloc.h"
 #include "debug.h"
-
-extern "C"
-{
-	#include "../common/config.h"
-}
-
-extern void* _data_end;
-extern void* _code_start;
+#include "config.h"
+#include "linker.h"
 
 frame_alloc_iface* memory::frame_alloc;
 
 void memory::init(kernel_boot_info* kbi)
 {
-	auto mb_mmap_tag = get_mem_map(kbi);
+	auto mb_mmap_tag = mb::get_tag<multiboot_tag_mmap*>(kbi, MULTIBOOT_TAG_TYPE_MMAP);
 	if (!mb_mmap_tag)
 	{
 		panic("No multiboot memory map found");
 		die();
 	}
 
-	struct multiboot_mmap_entry *entry;
-	auto entry_end = (struct multiboot_mmap_entry*) ((uint64_t) mb_mmap_tag + mb_mmap_tag->size);
+	multiboot_mmap_entry *entry;
+	auto entry_end = (multiboot_mmap_entry*) ((uint64_t) mb_mmap_tag + mb_mmap_tag->size);
 
 	uint64_t top = 0;
 	uint8_t* largest_region_ptr = nullptr;
@@ -33,7 +27,7 @@ void memory::init(kernel_boot_info* kbi)
 	uint64_t total_ram = 0;
 
 	/* Count RAM */
-	for (entry = mb_mmap_tag->entries; entry < entry_end; entry = mb_next(entry, mb_mmap_tag))
+	for (entry = mb_mmap_tag->entries; entry < entry_end; entry = mb::next(entry, mb_mmap_tag))
 	{
 		const char *typeNames[] = { "Unknown", "available", "reserved", "ACPI reclaimable", "NVS", "\"bad ram\""};
 		con << "Memory region " <<  entry->addr << " with length: " << entry->len << " of type " << typeNames[entry->type] << '\n';
@@ -137,9 +131,9 @@ void memory::setup_usage(multiboot_tag_mmap* mb_mmap_tag, uint64_t memtop)
 	get_bitmap()->set_range(0, memtop / 0x1000);
 
 	/* Iterate over the memory map again, and reset available bits. */
-	struct multiboot_mmap_entry *entry;
-	auto entry_end = (struct multiboot_mmap_entry*) ((uint64_t) mb_mmap_tag + mb_mmap_tag->size);
-	for (entry = mb_mmap_tag->entries; entry < entry_end; entry = mb_next(entry, mb_mmap_tag))
+	multiboot_mmap_entry *entry;
+	auto entry_end = (multiboot_mmap_entry*) ((uint64_t) mb_mmap_tag + mb_mmap_tag->size);
+	for (entry = mb_mmap_tag->entries; entry < entry_end; entry = mb::next(entry, mb_mmap_tag))
 	{
 		if (entry->type == MULTIBOOT_MEMORY_AVAILABLE)
 		{
@@ -153,21 +147,6 @@ void memory::setup_usage(multiboot_tag_mmap* mb_mmap_tag, uint64_t memtop)
 
 	/* This will mark the pages that are actually in use */
 	clean_page_tables();
-}
-
-multiboot_tag_mmap* memory::get_mem_map(kernel_boot_info* kbi)
-{
-	auto mb_tag_addr = kbi->mb_tag;
-	auto mb_tag = (struct multiboot_tag *) mb_tag_addr;
-	while (mb_tag->type)
-	{
-		if (mb_tag->type == MULTIBOOT_TAG_TYPE_MMAP)
-			return (multiboot_tag_mmap*) mb_tag;
-		mb_tag_addr += (mb_tag->size + 7) & ~7;
-		mb_tag = (struct multiboot_tag *) mb_tag_addr;
-	}
-
-	return nullptr;
 }
 
 void memory::map_page(uint64_t virt, uint64_t phys)

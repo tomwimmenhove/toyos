@@ -140,7 +140,7 @@ void console_x86::write_pos(uint16_t p)
 	outb((p >> 8) & 0xff, 0x3d5);
 }
 
-void console_x86::init()
+void console_x86::init(kernel_boot_info* )
 {
 	/* enable cursor */
 	outb(0x0A, 0x3D4);
