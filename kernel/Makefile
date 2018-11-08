@@ -11,53 +11,17 @@ LD = x86_64-elf-ld
 
 all: kernel.elf
 
-crti.o: crti.S
-	$(AS) -c crti.S -o crti.o
+IOBJS = crti.o crtn.o
+OBJS = debug.o kernel.o memory.o malloc.o frame_alloc.o interrupt_jump.o gdt.o idt.o interrupts.o pic.o console.o syscall.o
 
-crtn.o: crtn.S
-	$(AS) -c crtn.S -o crtn.o
+%.o: %.S
+	$(AS) -c $< -o $@
 
-interrupt_jump.o: interrupt_jump.S
-	$(AS) -c interrupt_jump.S -o interrupt_jump.o
+%.o: %.cpp
+	$(CPP) $(CPPFLAGS) -c $<
 
-syscall.o: syscall.S
-	$(AS) -c syscall.S -o syscall.o
-
-kernel.o: kernel.cpp ../common/debug_out.h
-	$(CPP) $(CPPFLAGS) -c kernel.cpp
-
-debug_out.o: ../common/debug_out.c ../common/debug_out.h
-	$(CC) $(CFLAGS) -c ../common/debug_out.c
-
-debug.o: debug.cpp debug.h
-	$(CC) $(CFLAGS) -c debug.cpp
-
-memory.o: memory.cpp memory.h frame_alloc.h
-	$(CPP) $(CPPFLAGS) -c memory.cpp
-
-malloc.o: malloc.cpp malloc.h
-	$(CPP) $(CPPFLAGS) -c malloc.cpp
-
-frame_alloc.o: frame_alloc.cpp frame_alloc.h memory.h
-	$(CPP) $(CPPFLAGS) -c frame_alloc.cpp
-
-gdt.o: gdt.cpp gdt.h descriptors.h
-	$(CPP) $(CPPFLAGS) -c gdt.cpp
-
-idt.o: idt.cpp idt.h descriptors.h
-	$(CPP) $(CPPFLAGS) -c idt.cpp
-
-interrupts.o: interrupts.cpp interrupts.h
-	$(CPP) $(CPPFLAGS) -c interrupts.cpp
-
-pic.o: pic.cpp pic.h
-	$(CPP) $(CPPFLAGS) -c pic.cpp
-
-console.o: console.cpp console.h
-	$(CPP) $(CPPFLAGS) -c console.cpp
-
-kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o interrupt_jump.o gdt.o idt.o interrupts.o pic.o console.o syscall.o
-	$(LD) $(LDFLAGS) interrupt_jump.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o gdt.o idt.o interrupts.o pic.o console.o syscall.o -o kernel.elf
+kernel.elf: $(OBJS) $(IOBJS)
+	$(LD) $(LDFLAGS) $(OBJS) -o kernel.elf
 
 clean:
 	rm -rf *.o kernel.elf
