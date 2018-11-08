@@ -4,19 +4,11 @@
 .align 4
 multiboot_header_start:
 # multiboot v2
-	.long 0xe85250d6                						# Magic
-	.long 0                         						# Arch (i386)
-        .long multiboot_header_end - multiboot_header_start				# Header length
+	.long 0xe85250d6															# Magic
+	.long 0																		# Arch (i386)
+	.long multiboot_header_end - multiboot_header_start							# Header length
 	.long -(0xe85250d6 + 0 + (multiboot_header_end - multiboot_header_start))	# Checksum
 
-
-	/* From stackoverflow */
-# tags
-# module align
-#	.word 6 # type
-#	.word 0 # flags
-#	.long 8 # size in bytes (spec says 12?)
-#	.balign 8
 # info request 
 	.word 1
 	.word 0
@@ -29,7 +21,6 @@ multiboot_header_start:
 	.long 9 # ELF symbols
 	.long 10 # APM table
 	.balign 8
-	/* /from satackoverflow */
 
 	.word 0
 	.word 0
@@ -48,7 +39,7 @@ multiboot_header_end:
 _start: 
 	cli
 	mov	$_stack_top, %esp
-//	mov	$0x200000, %ebp
+	mov	$esp, %ebp
 
 	pushl	%ebx
 	pushl	%eax
