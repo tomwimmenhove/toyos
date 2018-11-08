@@ -1,6 +1,7 @@
 all:
 	make -C kernel
 	make -C multiboot
+	rm image.iso
 	make image.iso
 
 image.iso:

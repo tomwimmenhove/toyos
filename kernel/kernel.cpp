@@ -77,6 +77,23 @@ void user_space()
 
 volatile uint8_t stack[256];
 
+struct newTest
+{
+	char s[65536];
+	int a;
+};
+
+extern "C" void *memset(void *s, int c, size_t n)
+{
+	uint8_t* p = (uint8_t*) s;
+
+	while (n--)
+		*p++ = c;
+
+	return s;
+}
+
+
 void kmain()
 {
 	mallocator::test();
@@ -97,6 +114,12 @@ void kmain()
 	interrupts::regist(pic_sys.to_intr(0), interrupt_timer);
 	interrupts::regist(pic_sys.to_intr(1), interrupt_kb);
 	interrupts::regist(42, intr_syscall);
+
+	volatile newTest* nt = new newTest();
+
+	nt->a = 42;
+
+	con << "test: " << nt->a << '\n';
 
 	
 

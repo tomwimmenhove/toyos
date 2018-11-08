@@ -18,8 +18,8 @@ LD = x86_64-elf-ld
 all: kernel.elf
 
 IOBJS = crti.o crtn.o
-OBJS = debug.o   kernel.o memory.o   malloc.o   frame_alloc.o gdt.o   idt.o   interrupts.o   pic.o   console.o   syscall.o interrupt_jump.o
-SRCS = debug.cpp kernel.o memory.cpp malloc.cpp frame_alloc.o gdt.cpp idt.cpp interrupts.cpp pic.cpp console.cpp syscall.S interrupt_jump.S
+OBJS = debug.o   kernel.o memory.o   malloc.o   frame_alloc.o gdt.o   idt.o   interrupts.o   pic.o   console.o   syscall.o interrupt_jump.o new.o
+SRCS = debug.cpp kernel.o memory.cpp malloc.cpp frame_alloc.o gdt.cpp idt.cpp interrupts.cpp pic.cpp console.cpp syscall.S interrupt_jump.S new.cpp
 
 %.o: %.S
 	$(AS) -c $< -o $@
