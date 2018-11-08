@@ -1,6 +1,7 @@
 #include "console.h"
 #include "io.h"
 #include "syscall.h"
+#include "mb.h"
 
 /* Generic console stuff */
 
@@ -140,7 +141,7 @@ void console_x86::write_pos(uint16_t p)
 	outb((p >> 8) & 0xff, 0x3d5);
 }
 
-void console_x86::init(kernel_boot_info* )
+void console_x86::init(kernel_boot_info* kbi)
 {
 	/* enable cursor */
 	outb(0x0A, 0x3D4);
@@ -150,6 +151,13 @@ void console_x86::init(kernel_boot_info* )
 	outb((inb(0x3D5) & 0xE0) | 15, 0x3d5);
 
 	pos = read_pos();
+
+	auto fb_tag = mb::get_tag<multiboot_tag_framebuffer*>(kbi, MULTIBOOT_TAG_TYPE_FRAMEBUFFER);
+	if (fb_tag)
+	{
+		h = fb_tag->common.framebuffer_height;
+		w = fb_tag->common.framebuffer_width;
+	}
 }
 
 void console_x86::putc(char ch)

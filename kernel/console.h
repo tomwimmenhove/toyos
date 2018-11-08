@@ -30,11 +30,12 @@ struct console
 	console& operator<< (long long int val);
 	console& operator<< (long long unsigned int val);
 
+protected:
+	void pr_int_s(long long int val);
+	void pr_int_u(unsigned long long int val);
 
 private:
 	void pr_int(unsigned long long int val, unsigned long long int div);
-	void pr_int_s(long long int val);
-	void pr_int_u(unsigned long long int val);
 };
 
 template<class T>

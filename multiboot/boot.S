@@ -20,7 +20,8 @@ multiboot_header_start:
 # info request 
 	.word 1
 	.word 0
-	.long 4*6+8
+	.long 4*7+8
+	.long 8 # framebuffer
 	.long 6 # memory map
 	.long 5 # BIOS boot device
 	.long 1 # command line
