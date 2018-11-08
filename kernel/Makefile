@@ -11,9 +11,6 @@ LD = x86_64-elf-ld
 
 all: kernel.elf
 
-kernel.o: kernel.cpp ../common/debug_out.h
-	$(CPP) $(CPPFLAGS) -c kernel.cpp
-
 crti.o: crti.S
 	$(AS) -c crti.S -o crti.o
 
@@ -22,6 +19,12 @@ crtn.o: crtn.S
 
 interrupt_jump.o: interrupt_jump.S
 	$(AS) -c interrupt_jump.S -o interrupt_jump.o
+
+syscall.o: syscall.S
+	$(AS) -c syscall.S -o syscall.o
+
+kernel.o: kernel.cpp ../common/debug_out.h
+	$(CPP) $(CPPFLAGS) -c kernel.cpp
 
 debug_out.o: ../common/debug_out.c ../common/debug_out.h
 	$(CC) $(CFLAGS) -c ../common/debug_out.c
@@ -53,8 +56,8 @@ pic.o: pic.cpp pic.h
 console.o: console.cpp console.h
 	$(CPP) $(CPPFLAGS) -c console.cpp
 
-kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o interrupt_jump.o gdt.o idt.o interrupts.o pic.o console.o
-	$(LD) $(LDFLAGS) interrupt_jump.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o gdt.o idt.o interrupts.o pic.o console.o -o kernel.elf
+kernel.elf: crti.o crtn.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o interrupt_jump.o gdt.o idt.o interrupts.o pic.o console.o syscall.o
+	$(LD) $(LDFLAGS) interrupt_jump.o debug.o debug_out.o kernel.o memory.o malloc.o frame_alloc.o gdt.o idt.o interrupts.o pic.o console.o syscall.o -o kernel.elf
 
 clean:
 	rm -rf *.o kernel.elf

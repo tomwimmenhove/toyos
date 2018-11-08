@@ -1,6 +1,6 @@
 #include "console.h"
 #include "io.h"
-//#include "debug.h"
+#include "syscall.h"
 
 /* Generic console stuff */
 
@@ -192,17 +192,11 @@ console_user ucon;
 
 void console_user::putc(char ch)
 {
-	asm volatile(
-			"mov $1, %%rdi\n"
-			"int $42\n"
-			: "=D" (ch));
+	syscall(1, ch);
 }
 
 void console_user::write_string(const char* s)
 {
-	asm volatile(
-			"mov $0, %%rdi\n"
-			"int $42\n"
-			: "=D" (s));
+	syscall(0, (uint64_t) s);
 }
 
