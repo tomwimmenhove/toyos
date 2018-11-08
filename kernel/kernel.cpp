@@ -31,8 +31,17 @@ void __attribute__ ((noinline)) test()
 		asm("int $42");
 }
 
-static uint64_t kstack1;
-static uint64_t kstack2;
+template<size_t S>
+struct __attribute__((packed)) kstack
+{
+	template<typename T>
+	inline T top() { return (T) (((uint64_t) this) + S); }
+	uint8_t space[S - sizeof(interrupt_state)];
+	interrupt_state state;
+};
+
+static kstack<4096> kstack1;
+static kstack<4096> kstack2;
 
 static uint64_t ustack2;
 
@@ -103,32 +112,19 @@ struct task
 	uint64_t rsp;
 };
 
-static task tsk[2];
-
-//static bool created = false;
-
-//static interrupt_state tsk2_state;
-//static interrupt_state* tsk2_state;
-
-uint8_t b1[4096];
 uint8_t b2[4096];
-uint8_t b3[4096];
 uint8_t b4[4096];
 
 
 interrupt_state* state_p1;
-uint64_t kstack_p1 = (uint64_t) b1;
-uint64_t kstack_p1_top;
 
 uint64_t ustack_p1 = (uint64_t) b2;
-uint64_t ustack_p1_top;
+uint64_t ustack_p1_top = ustack_p1 + sizeof(b2);;
 
 interrupt_state* state_p2;
-uint64_t kstack_p2 = (uint64_t) b3;
-uint64_t kstack_p2_top;
 
 uint64_t ustack_p2 = (uint64_t) b4;
-uint64_t ustack_p2_top;
+uint64_t ustack_p2_top = ustack_p2 + sizeof(b4);
 
 
 
@@ -153,7 +149,7 @@ void intr_syscall(uint64_t, interrupt_state* state)
 			break;
 
 		case 3: // load process 2
-			tss0.rsp0 = kstack_p2_top;
+			tss0.rsp0 = kstack2.top<uint64_t>();
 			
 			tmp = state_p2->rsp;
 			state_p2->rsp = state_p1->rsp;
@@ -163,7 +159,7 @@ void intr_syscall(uint64_t, interrupt_state* state)
 
 			break;
 		case 4: // load process 1
-			tss0.rsp0 = kstack_p1_top;
+			tss0.rsp0 = kstack1.top<uint64_t>();
 
 			tmp = state_p1->rsp;
 			state_p1->rsp = state_p2->rsp;
@@ -178,14 +174,14 @@ void interrupt_timer(uint64_t, interrupt_state*)
 	con << ".";
 
 //	return;
-	if (tss0.rsp0 == kstack_p2_top)
+	if (tss0.rsp0 == kstack2.top<uint64_t>())
 	{
-		tss0.rsp0 = kstack_p1_top;
+		tss0.rsp0 = kstack1.top<uint64_t>();
 		switch_to(state_p1);
 	}
 	else
 	{
-		tss0.rsp0 = kstack_p2_top;
+		tss0.rsp0 = kstack2.top<uint64_t>();
 		switch_to(state_p2);
 	}
 }
@@ -199,15 +195,15 @@ void interrupt_kb(uint64_t, interrupt_state*)
 		return;
 
 //	return;
-	if (tss0.rsp0 == kstack_p2_top)
+	if (tss0.rsp0 == kstack2.top<uint64_t>())
 	{
-		tss0.rsp0 = kstack_p1_top;
+		tss0.rsp0 = kstack1.top<uint64_t>();
 		switch_to(state_p1);
 		con << "Never happens!\n";
 	}
 	else
 	{
-		tss0.rsp0 = kstack_p2_top;
+		tss0.rsp0 = kstack2.top<uint64_t>();
 		switch_to(state_p2);
 		con << "Never happens!\n";
 	}
@@ -270,16 +266,10 @@ void kmain()
 	::: "%ax");
 
 	/* SETUP PS 1 */
-//	kstack_p1 = (uint64_t) mallocator::malloc(4096);
-	kstack_p1_top = kstack_p1 + 4096;
-
-//	ustack_p1 = (uint64_t) mallocator::malloc(4096);
-	ustack_p1_top = ustack_p1 + 4096;
-
-	tss0.rsp0 = kstack_p1_top;
+	tss0.rsp0 = kstack1.top<uint64_t>();
 
 	/* Place state at the top of the process' stack */
-	state_p1 = (interrupt_state*) (kstack_p1_top - sizeof(interrupt_state));
+	state_p1 = (interrupt_state*) (kstack1.top<uint64_t>() - sizeof(interrupt_state));
 	state_p1->rsp = ((uint64_t) state_p1) + sizeof(uint64_t); /* Because, after popping %rsp itself, it should point to the next register to be popped */
 
 	state_p1->iregs.ss = 0x3b;
@@ -290,14 +280,8 @@ void kmain()
 
 
 	/* SETUP PS 2*/
-//	kstack_p2 = (uint64_t) mallocator::malloc(4096);
-	kstack_p2_top = kstack_p2 + 4096;
-
-//	ustack_p2 = (uint64_t) mallocator::malloc(4096);
-	ustack_p2_top = ustack_p2 + 4096;
-
 	/* Place state at the top of the process' stack */
-	state_p2 = (interrupt_state*) (kstack_p2_top - sizeof(interrupt_state));
+	state_p2 = (interrupt_state*) (kstack2.top<uint64_t>() - sizeof(interrupt_state));
 	state_p2->rsp = ((uint64_t) state_p2) + sizeof(uint64_t); /* Because, after popping %rsp itself, it should point to the next register to be popped */
 
 	state_p2->iregs.ss = 0x3b;
@@ -307,7 +291,7 @@ void kmain()
 	state_p2->iregs.rip = (uint64_t) &user_space2;
 
 
-//	tss0.rsp0 = kstack_p2_top;
+//	tss0.rsp0 = kstack2.top<uint64_t>();
 
 	pic_sys.sti();
 	switch_to(state_p1);
@@ -315,16 +299,17 @@ void kmain()
 	panic("death");
 
 
-	kstack1 = (uint64_t) mallocator::malloc(4096);
-	kstack2 = (uint64_t) mallocator::malloc(4096);
+//	kstack1 = (uint64_t) mallocator::malloc(4096);
+//	kstack2 = (uint64_t) mallocator::malloc(4096);
 	ustack2 = (uint64_t) mallocator::malloc(256);
 
-	tss0.rsp0 = kstack1 + 4096;
-	tsk[0].krsp = kstack1 + 4096;
+
+//	tss0.rsp0 = kstack1 + 4096;
+//	tsk[0].krsp = kstack1 + 4096;
 
 
-	tsk[1].krsp = kstack2 + 4096;
-	tsk[1].rsp = ustack2 + 256;
+//	tsk[1].krsp = kstack2 + 4096;
+//	tsk[1].rsp = ustack2 + 256;
 
 	pic_sys.sti();
 
