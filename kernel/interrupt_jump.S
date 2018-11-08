@@ -16,9 +16,11 @@
 	pushq %rdx
 	pushq %rcx
 	pushq %rax
+	pushq %rsp
 .endm
 
 .macro POPPER
+	popq %rsp
 	popq %rax
 	popq %rcx
 	popq %rdx
@@ -41,6 +43,7 @@
 intr_\n:
 	pushq $0
 	push %rdi
+	push %rsi
 	jmp \body
 .align 0x10
 .endm
@@ -51,6 +54,7 @@ intr_\n:
 .type intr_\n, @function
 intr_\n:
 	push %rdi
+	push %rsi
 	jmp \body
 .align 0x10
 .endm
@@ -60,6 +64,7 @@ intr_\n:
 .global intr_\n
 .type intr_\n, @function
 intr_\n: 
+	pushq $0
 	push %rdi
 	push %rsi
 	mov $\n, %rdi
@@ -77,6 +82,7 @@ jmp \body
 	POPPER
 	pop %rsi
 	pop %rdi
+	add $8, %rsp
 	iretq
 .endm
 
@@ -88,6 +94,7 @@ jmp \body
 	mov %rsp, %rdi
 	call \target
 	POPPER
+	pop %rsi
 	pop %rdi
 	add $8, %rsp
 	iretq

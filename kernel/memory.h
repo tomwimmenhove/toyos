@@ -25,7 +25,7 @@ public:
 	static void map_page(uint64_t virt, uint64_t phys);
 	static uint64_t get_phys(uint64_t virt);
 
-	static void handle_pg_fault(exception_state* state, uint64_t addr);
+	static void handle_pg_fault(interrupt_state* state, uint64_t addr);
 
 	static frame_alloc_iface* frame_alloc;
 private:

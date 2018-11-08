@@ -31,8 +31,113 @@ void __attribute__ ((noinline)) test()
 		asm("int $42");
 }
 
+static uint64_t kstack1;
+static uint64_t kstack2;
+
+static uint64_t ustack2;
+
+void user_space()
+{
+	for (int i = 0;; i ++)
+	{
+//		for (volatile int j = 0; j < 10000000; j++) ;
+		ucon << '1';
+//		ucon << "Hello world from userspace process 1: i=" << i << '\n';
+//		for (int i = 0 ; i < 9; i++)
+			syscall(2);
+//		syscall(3);
+	}
+}
+
+void user_space2()
+{
+	for (int i = 0;; i ++)
+	{
+//		for (volatile int j = 0; j < 10000000; j++) ;
+		ucon << '2';
+//		ucon << "Hello world from userspace process 2: i=" << i << '\n';
+//		for (int i = 0 ; i < 9; i++)
+			syscall(2);
+//		syscall(4);
+	}
+}
+
+#if 1
+void switch_to(interrupt_state* state)
+{
+	asm volatile(
+			"mov $0x3b, %%ax\n"
+			"mov %%ax, %%ds\n"
+			"mov %%ax, %%es\n"
+			"mov %%ax, %%fs\n"
+			"mov %%ax, %%gs\n"
+
+			"mov %0, %%rsp\n"
+			"popq %%rsp\n"
+			"popq %%rax\n"
+			"popq %%rcx\n"
+			"popq %%rdx\n"
+			"popq %%rbx\n"
+			"popq %%rbp\n"
+			"popq %%r8\n"
+			"popq %%r9\n"
+			"popq %%r10\n"
+			"popq %%r11\n"
+			"popq %%r12\n"
+			"popq %%r13\n"
+			"popq %%r14\n"
+			"popq %%r15\n"
+			"pop %%rsi\n"
+			"pop %%rdi\n"
+			"add $8, %%rsp\n"
+			"iretq\n"
+			:
+			: "r" (state)
+			);
+}
+#endif
+
+struct task
+{
+	uint64_t krsp;
+	uint64_t rsp;
+};
+
+static task tsk[2];
+
+//static bool created = false;
+
+//static interrupt_state tsk2_state;
+//static interrupt_state* tsk2_state;
+
+uint8_t b1[4096];
+uint8_t b2[4096];
+uint8_t b3[4096];
+uint8_t b4[4096];
+
+
+interrupt_state* state_p1;
+uint64_t kstack_p1 = (uint64_t) b1;
+uint64_t kstack_p1_top;
+
+uint64_t ustack_p1 = (uint64_t) b2;
+uint64_t ustack_p1_top;
+
+interrupt_state* state_p2;
+uint64_t kstack_p2 = (uint64_t) b3;
+uint64_t kstack_p2_top;
+
+uint64_t ustack_p2 = (uint64_t) b4;
+uint64_t ustack_p2_top;
+
+
+
 void intr_syscall(uint64_t, interrupt_state* state)
 {
+//	con << "enter\n";
+	//	tss0.rsp0 -= 0x100;
+
+	uint64_t tmp;
 	switch(state->rdi)
 	{
 		case 0:
@@ -46,40 +151,71 @@ void intr_syscall(uint64_t, interrupt_state* state)
 					"sti\n"
 					"hlt");
 			break;
+
+		case 3: // load process 2
+			tss0.rsp0 = kstack_p2_top;
+			
+			tmp = state_p2->rsp;
+			state_p2->rsp = state_p1->rsp;
+			state_p1->rsp = tmp;
+
+//			switch_to(state_p2);
+
+			break;
+		case 4: // load process 1
+			tss0.rsp0 = kstack_p1_top;
+
+			tmp = state_p1->rsp;
+			state_p1->rsp = state_p2->rsp;
+			state_p2->rsp = tmp;
+
+//			switch_to(state_p1);
 	}
 }
 
 void interrupt_timer(uint64_t, interrupt_state*)
 {
-//	con << ".";
+	con << ".";
+
+//	return;
+	if (tss0.rsp0 == kstack_p2_top)
+	{
+		tss0.rsp0 = kstack_p1_top;
+		switch_to(state_p1);
+	}
+	else
+	{
+		tss0.rsp0 = kstack_p2_top;
+		switch_to(state_p2);
+	}
 }
 
 void interrupt_kb(uint64_t, interrupt_state*)
 {
 	uint8_t ch = inb_p(0x60);
 	con << "key: " << (long long int) ch << "\n";
-}
 
-void user_space()
-{
-	for (int i = 0; i < 10; i++)
-		ucon << i << ' ';
+	if (ch > 127)
+		return;
 
-	ucon << '\n';
-
-	for (;;)
+//	return;
+	if (tss0.rsp0 == kstack_p2_top)
 	{
-		for (int i = 0; i < 18; i++)
-			syscall(2); // halt
-		ucon << '.';
+		tss0.rsp0 = kstack_p1_top;
+		switch_to(state_p1);
+		con << "Never happens!\n";
+	}
+	else
+	{
+		tss0.rsp0 = kstack_p2_top;
+		switch_to(state_p2);
+		con << "Never happens!\n";
 	}
 }
 
-volatile uint8_t stack[256];
-
 struct newTest
 {
-	char s[65536];
+	char s[8192];
 	int a;
 };
 
@@ -111,6 +247,9 @@ void kmain()
 		pppp[i] = 0x41414141;
 #endif
 
+
+//	pic_sys.disable(pic_sys.to_intr(0));
+
 	interrupts::regist(pic_sys.to_intr(0), interrupt_timer);
 	interrupts::regist(pic_sys.to_intr(1), interrupt_kb);
 	interrupts::regist(42, intr_syscall);
@@ -130,10 +269,66 @@ void kmain()
 	"ltr %%ax"
 	::: "%ax");
 
-	tss0.rsp0 = ((uint64_t) stack) + sizeof(stack);
+	/* SETUP PS 1 */
+//	kstack_p1 = (uint64_t) mallocator::malloc(4096);
+	kstack_p1_top = kstack_p1 + 4096;
+
+//	ustack_p1 = (uint64_t) mallocator::malloc(4096);
+	ustack_p1_top = ustack_p1 + 4096;
+
+	tss0.rsp0 = kstack_p1_top;
+
+	/* Place state at the top of the process' stack */
+	state_p1 = (interrupt_state*) (kstack_p1_top - sizeof(interrupt_state));
+	state_p1->rsp = ((uint64_t) state_p1) + sizeof(uint64_t); /* Because, after popping %rsp itself, it should point to the next register to be popped */
+
+	state_p1->iregs.ss = 0x3b;
+	state_p1->iregs.rsp = ustack_p1_top;
+	state_p1->iregs.rflags = 0x202;
+	state_p1->iregs.cs = 0x33;
+	state_p1->iregs.rip = (uint64_t) &user_space;
+
+
+	/* SETUP PS 2*/
+//	kstack_p2 = (uint64_t) mallocator::malloc(4096);
+	kstack_p2_top = kstack_p2 + 4096;
+
+//	ustack_p2 = (uint64_t) mallocator::malloc(4096);
+	ustack_p2_top = ustack_p2 + 4096;
+
+	/* Place state at the top of the process' stack */
+	state_p2 = (interrupt_state*) (kstack_p2_top - sizeof(interrupt_state));
+	state_p2->rsp = ((uint64_t) state_p2) + sizeof(uint64_t); /* Because, after popping %rsp itself, it should point to the next register to be popped */
+
+	state_p2->iregs.ss = 0x3b;
+	state_p2->iregs.rsp = ustack_p2_top;
+	state_p2->iregs.rflags = 0x202;
+	state_p2->iregs.cs = 0x33;
+	state_p2->iregs.rip = (uint64_t) &user_space2;
+
+
+//	tss0.rsp0 = kstack_p2_top;
+
+	pic_sys.sti();
+	switch_to(state_p1);
+
+	panic("death");
+
+
+	kstack1 = (uint64_t) mallocator::malloc(4096);
+	kstack2 = (uint64_t) mallocator::malloc(4096);
+	ustack2 = (uint64_t) mallocator::malloc(256);
+
+	tss0.rsp0 = kstack1 + 4096;
+	tsk[0].krsp = kstack1 + 4096;
+
+
+	tsk[1].krsp = kstack2 + 4096;
+	tsk[1].rsp = ustack2 + 256;
 
 	pic_sys.sti();
 
+	/// XXX We go wrong because of the stack pointer here?
 //	for(;;);
 	/* Never return from this */
 	asm volatile(
