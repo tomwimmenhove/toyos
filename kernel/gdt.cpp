@@ -19,8 +19,6 @@ static uint8_t gdt[gdt_max_size];
 
 static desc_ptr gdt_ptr { (gdt_entry*) gdt, sizeof(gdt) };
 
-#include "debug.h"
-
 template<typename T>
 void gdt_load_entry(uint16_t offset, T entry)
 {
