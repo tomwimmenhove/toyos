@@ -39,7 +39,7 @@ multiboot_header_end:
 _start: 
 	cli
 	mov	$_stack_top, %esp
-	mov	$esp, %ebp
+	mov	%esp, %ebp
 
 	pushl	%ebx
 	pushl	%eax
