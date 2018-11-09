@@ -50,9 +50,8 @@ extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state)
 {
 //	con << "Interrupt " << irq_num << " at rip=" << state->iregs.rip << '\n';
 
-	interrupts::handle(irq_num, state);
-
 	pic_sys.eoi(irq_num);
+	interrupts::handle(irq_num, state);
 }
 
 

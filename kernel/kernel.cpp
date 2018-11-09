@@ -43,8 +43,6 @@ struct __attribute__((packed)) kstack
 static kstack<4096> kstack1;
 static kstack<4096> kstack2;
 
-static uint64_t ustack2;
-
 void user_space()
 {
 	for (int i = 0;; i ++)
@@ -167,13 +165,14 @@ void intr_syscall(uint64_t, interrupt_state* state)
 
 //			switch_to(state_p1);
 	}
+
+//	asm("sti");
 }
 
 void interrupt_timer(uint64_t, interrupt_state*)
 {
 	con << ".";
 
-//	return;
 	if (tss0.rsp0 == kstack2.top<uint64_t>())
 	{
 		tss0.rsp0 = kstack1.top<uint64_t>();
@@ -266,8 +265,6 @@ void kmain()
 	::: "%ax");
 
 	/* SETUP PS 1 */
-	tss0.rsp0 = kstack1.top<uint64_t>();
-
 	/* Place state at the top of the process' stack */
 	state_p1 = (interrupt_state*) (kstack1.top<uint64_t>() - sizeof(interrupt_state));
 	state_p1->rsp = ((uint64_t) state_p1) + sizeof(uint64_t); /* Because, after popping %rsp itself, it should point to the next register to be popped */
@@ -291,61 +288,10 @@ void kmain()
 	state_p2->iregs.rip = (uint64_t) &user_space2;
 
 
-//	tss0.rsp0 = kstack2.top<uint64_t>();
-
 	pic_sys.sti();
+
+	tss0.rsp0 = kstack1.top<uint64_t>();
 	switch_to(state_p1);
-
-	panic("death");
-
-
-//	kstack1 = (uint64_t) mallocator::malloc(4096);
-//	kstack2 = (uint64_t) mallocator::malloc(4096);
-	ustack2 = (uint64_t) mallocator::malloc(256);
-
-
-//	tss0.rsp0 = kstack1 + 4096;
-//	tsk[0].krsp = kstack1 + 4096;
-
-
-//	tsk[1].krsp = kstack2 + 4096;
-//	tsk[1].rsp = ustack2 + 256;
-
-	pic_sys.sti();
-
-	/// XXX We go wrong because of the stack pointer here?
-//	for(;;);
-	/* Never return from this */
-	asm volatile(
-			"mov $0x3b, %%ax\n"
-			"mov %%ax, %%ds\n"
-			"mov %%ax, %%es\n"
-			"mov %%ax, %%fs\n"
-			"mov %%ax, %%gs\n"
-
-			"mov %%rsp, %%rax\n"
-
-			"pushq $0x3b\n"	// data seg
-			"pushq %%rax\n"	// stack pointer
-//			"pushq $2\n" 	// XXX: Check what flags we need?
-			"pushfq\n" 		// Push flags
-			"pushq $0x33\n"	// code seg
-
-			"pushq %%rbx\n"	// pointer
-
-			"iretq\n"
-			:
-			: "b" (&user_space)
-			:
-			);
-
-
-	for(;;)
-	{
-		asm volatile ("hlt\nhlt\nhlt\nhlt");
-	}
-
-	die();
 }
 
 extern "C"
