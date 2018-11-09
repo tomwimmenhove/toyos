@@ -88,9 +88,284 @@ void user_space2()
 	}
 }
 
+
+struct __attribute__((packed)) regs
+{
+	uint64_t r15;
+	uint64_t r14;
+	uint64_t r13;
+	uint64_t r12;
+	uint64_t r11;
+	uint64_t r10;
+	uint64_t r9;
+	uint64_t r8;
+	uint64_t rdi;
+	uint64_t rsi;
+	uint64_t rbp;
+	uint64_t rbx;
+	uint64_t rdx;
+	uint64_t rcx;
+	uint64_t rax;
+
+	uint64_t rip;
+
+	uint64_t ret_ptr;
+};
+
+void dead_task()
+{
+	panic("Can't handle returning tasks yet");
+}
+
+void __attribute__ ((noinline)) init_tsk0(uint64_t rip, uint64_t ret, uint64_t rsp)
+{
+	asm volatile(
+			"mov %%rdx, %%rsp\n"	// Set stack pointer
+			"push %%rsi\n"			// Push return pointer
+			"jmp *%%rdi\n"			// Jump to task
+			: 
+			: "d" (rsp), "S" (ret), "D" (rip));
+}
+
+void __attribute__ ((noinline)) jump_uspace(uint64_t rip, uint64_t rsp, uint16_t cs = 0x33, uint64_t rflags = 0x202, uint16_t ss = 0x3b)
+{
+	asm volatile(
+			"mov %0, %%rax\n"	// Setup data segment
+			"mov %%ax, %%ds\n"
+			"mov %%ax, %%es\n"
+			"mov %%ax, %%fs\n"
+			"mov %%ax, %%gs\n"
+
+			"pushq %0\n"		// push ss
+			"pushq %1\n"		// Push rsp
+			"pushq %2\n"		// Push flags
+			"pushq %3\n"		// Push cs
+			"pushq %4\n"		// Push rip
+
+			"iretq\n"			// Jump to userspace!
+			: 
+			: "r" ((uint64_t) ss), "r" (rsp), "r" (rflags), "r" ((uint64_t) cs), "r" ((uint64_t) rip)
+			: "memory"
+			);
+}
+
+void uspace_test()
+{
+	for (;;)
+	{
+		ucon << '1';
+	}
+}
+
+void __attribute__ ((noinline)) k_switch(uint64_t& rsp, uint64_t& save_rsp)
+{   
+	uint64_t rsp_ptr = (uint64_t) &rsp;
+	uint64_t save_rsp_ptr = (uint64_t) &save_rsp;
+
+	asm volatile(
+			/* Save registers of the current task */
+			"pushq %%rax\n"
+			"pushq %%rcx\n"
+			"pushq %%rdx\n"
+			"pushq %%rbx\n"
+			"pushq %%rbp\n"
+			"pushq %%rsi\n"
+			"pushq %%rdi\n"
+			"pushq %%r8\n"
+			"pushq %%r9\n"
+			"pushq %%r10\n"
+			"pushq %%r11\n"
+			"pushq %%r12\n"
+			"pushq %%r13\n"
+			"pushq %%r14\n"
+			"pushq %%r15\n"
+
+			/* Memory address of the stack pointer to save is in %rsi */
+			"mov %%rsp, (%%rsi)\n"
+
+			/* New stack pointer is in %rdi */
+			"mov (%%rdi), %%rsp\n"
+
+			/* Restore registers of the next task */
+			"popq %%r15\n"
+			"popq %%r14\n"
+			"popq %%r13\n"
+			"popq %%r12\n"
+			"popq %%r11\n"
+			"popq %%r10\n"
+			"popq %%r9\n"
+			"popq %%r8\n"
+			"popq %%rdi\n"
+			"popq %%rsi\n"
+			"popq %%rbp\n"
+			"popq %%rbx\n"
+			"popq %%rdx\n"
+			"popq %%rcx\n"
+			"popq %%rax\n"
+			: : "S" (save_rsp_ptr), "D" (rsp_ptr)
+			: "memory");
+}
+
+template<size_t S>
+struct __attribute__((packed)) user_stack
+{
+	user_stack(void (*rip)(), void(*ret)())
+		: state { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (uint64_t) rip, (uint64_t) ret }
+	{
+		memset(space, 0, sizeof(space));
+	}
+
+	template<typename T>
+	inline T top() { return (T) (((uint64_t) this) + S); }
+	uint8_t space[S - sizeof(regs)];
+	regs state;
+};
+
+user_stack<4096>* ustack1;
+user_stack<4096>* ustack2;
+
+struct task
+{
+	task(int id, uint64_t rsp, uint64_t tss_rsp)
+		: id(id), rsp(rsp), tss_rsp(tss_rsp), running(false)
+	{ }
+
+	int id;
+
+	uint64_t rsp;		/* Saved stack pointer */
+	uint64_t tss_rsp;	/* Kernel stack top */
+
+	bool running;
+
+	task* next;
+};
+
+task* tasks = nullptr;
+task* current = nullptr;
+
+task* task_idle;
+task* task1;
+task* task2;
+
+void schedule();
+void k_test_user1()
+{
+	for (;;)
+	{
+		ucon << '1';
+		task1->running = false;
+		syscall(5);
+	
+//		syscall(2);
+	}
+}
+
+void k_test1()
+{
+	jump_uspace((uint64_t) &k_test_user1, ustack1->top<uint64_t>());
+}
+
+void k_test_user2()
+{
+	for (;;)
+	{
+		ucon << '2';
+		task2->running = false;
+		syscall(5);
+//		syscall(2);
+	}
+}
+
+void k_test2()
+{
+	jump_uspace((uint64_t) &k_test_user2, ustack2->top<uint64_t>());
+}
+
+
+
+void task_add(task* task)
+{
+	auto head = tasks;
+
+	tasks = task;
+	task->next = head;
+}
+
+void schedule()
+{
+	auto last = current;
+
+	/* Find next task */
+	for(;;)
+	{
+		current = current->next;
+		if (current == nullptr)
+			current = tasks;
+		if (current->running)
+			break;
+
+		if (current == last)
+		{
+			current = task_idle;
+		}
+	}
+
+	/* Setup new kernel stack */
+	tss0.rsp0 = current->tss_rsp;
+
+	/* Switch tasks */
+	k_switch(current->rsp, last->rsp);
+}
+
+void tsk_idle()
+{
+	for (;;)
+	{
+//		ucon << 'X';
+		asm("hlt");
+//		schedule();
+	}
+}
+
+void k_test_init()
+{
+	/* Use the current stack for the idle task.
+	 * WARNING: THIS ASSUMES A SINGLE PAGE! */
+	uint64_t sp;
+	asm volatile("mov %%rsp, %0" : "=r" (sp));
+	sp = (sp & ~0xfff) + 0x1000;
+
+	//task_idle = new task(0, sp, (uint64_t) new uint8_t[4096] + 4096);
+	task_idle = new task(0, sp, 0 /* No need for a tss_rsp since it will never be in userspace (no privledge changes) */);
+	task_add(task_idle);
+
+	ustack1 = new user_stack<4096>(&k_test1, &dead_task);
+	ustack2 = new user_stack<4096>(&k_test2, &dead_task);
+
+	task1 = new task(1, (uint64_t) &ustack1->state, (uint64_t) new uint8_t[4096] + 4096);
+	task2 = new task(2, (uint64_t) &ustack2->state, (uint64_t) new uint8_t[4096] + 4096);
+
+	task_add(task1);
+	task_add(task2);
+
+	task_idle->running = true;
+	task1->running = true;
+	task2->running = true;
+
+	tss0.rsp0 = 0;
+	current = task_idle;
+
+	pic_sys.sti();
+	init_tsk0((uint64_t) tsk_idle, (uint64_t) &dead_task, sp);
+
+	panic("Idle task returned!?");
+}
+
+
 #if 1
 void switch_to(interrupt_state* state)
 {
+//	uint64_t b = (uint64_t) &state;
 	asm volatile(
 			"mov $0x3b, %%ax\n"
 			"mov %%ax, %%ds\n"
@@ -98,7 +373,7 @@ void switch_to(interrupt_state* state)
 			"mov %%ax, %%fs\n"
 			"mov %%ax, %%gs\n"
 
-			"mov %0, %%rsp\n"
+			"mov (%0), %%rsp\n"
 			"popq %%rsp\n"
 			"popq %%rax\n"
 			"popq %%rcx\n"
@@ -118,7 +393,9 @@ void switch_to(interrupt_state* state)
 			"add $8, %%rsp\n"
 			"iretq\n"
 			:
-			: "r" (state)
+//			: "r" (b)
+			: "r" (&state)
+			: "memory", "%rax"
 			);
 }
 #endif
@@ -137,6 +414,10 @@ void intr_syscall(uint64_t, interrupt_state* state)
 			asm volatile(
 					"sti\n"
 					"hlt");
+			break;
+
+		case 5:
+			schedule();
 			break;
 #if 0
 		case 3: // load process 2
@@ -163,7 +444,12 @@ void intr_syscall(uint64_t, interrupt_state* state)
 
 void interrupt_timer(uint64_t, interrupt_state*)
 {
-	con << ".";
+//	uint64_t test_rsp = 0;
+
+//	con << ".";
+//	k_switch(rsp2, &rsp1);
+	schedule();
+	return;
 
 	if (tss0.rsp0 == kstack2->top<uint64_t>())
 	{
@@ -180,11 +466,18 @@ void interrupt_timer(uint64_t, interrupt_state*)
 void interrupt_kb(uint64_t, interrupt_state*)
 {
 	uint8_t ch = inb_p(0x60);
-	con << "key: " << (long long int) ch << "\n";
+//	con << "key: " << (long long int) ch << "\n";
 
 	if (ch > 127)
 		return;
 
+	if (ch == 2)
+		task1->running = true;
+	if (ch == 3)
+		task2->running = true;
+
+	schedule();
+	return;
 	if (tss0.rsp0 == kstack2->top<uint64_t>())
 	{
 		tss0.rsp0 = kstack1->top<uint64_t>();
@@ -207,12 +500,21 @@ void kmain()
 	interrupts::regist(pic_sys.to_intr(1), interrupt_kb);
 	interrupts::regist(42, intr_syscall);
 
+
 //	test();
 
 	/* Load TSS0 */
 	asm volatile("mov $0x20, %%ax\n"
 	"ltr %%ax"
 	::: "%ax");
+
+	uint64_t ps = (uint64_t) mallocator::malloc(4096);
+	uint64_t ps_top = ps + 4096;
+
+	tss0.rsp0 = ps_top;
+//	pic_sys.sti();
+	k_test_init();
+
 
 	uint64_t ustack_p1 = (uint64_t) mallocator::malloc(4096);
 	uint64_t ustack_p1_top = (uint64_t) ustack_p1 + 4096;
