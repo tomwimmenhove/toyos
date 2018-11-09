@@ -21,6 +21,16 @@ extern "C" void __cxa_pure_virtual()
 	panic("Virtual method called");
 }
 
+extern "C" void *memset(void *s, int c, size_t n)
+{
+	uint8_t* p = (uint8_t*) s;
+
+	while (n--)
+		*p++ = c;
+
+	return s;
+}
+
 void print_stack_use()
 {
 	con << "stack usuage: " << (KERNEL_STACK_TOP - (uint64_t) __builtin_frame_address(0)) << "\n";
@@ -34,14 +44,23 @@ void __attribute__ ((noinline)) test()
 template<size_t S>
 struct __attribute__((packed)) kstack
 {
+	kstack(uint64_t rip, uint64_t rsp, uint16_t cs = 0x33, uint64_t rflags = 0x202, uint16_t ss = 0x3b)
+		:state {
+			/* rsp */ ((uint64_t) &state) + sizeof(uint64_t), /* Because, after popping %rsp itself, it should point to the next register to be popped */
+			/* GP regs */ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			{ rip, cs, rflags, rsp, ss /* iregs */} } 
+	{
+		memset(space, 0, sizeof(space));
+	}
+
 	template<typename T>
 	inline T top() { return (T) (((uint64_t) this) + S); }
 	uint8_t space[S - sizeof(interrupt_state)];
 	interrupt_state state;
 };
 
-static kstack<4096> kstack1;
-static kstack<4096> kstack2;
+static kstack<4096>* kstack1;
+static kstack<4096>* kstack2;
 
 void user_space()
 {
@@ -110,28 +129,13 @@ struct task
 	uint64_t rsp;
 };
 
-uint8_t b2[4096];
-uint8_t b4[4096];
-
-
-interrupt_state* state_p1;
-
-uint64_t ustack_p1 = (uint64_t) b2;
-uint64_t ustack_p1_top = ustack_p1 + sizeof(b2);;
-
-interrupt_state* state_p2;
-
-uint64_t ustack_p2 = (uint64_t) b4;
-uint64_t ustack_p2_top = ustack_p2 + sizeof(b4);
-
-
 
 void intr_syscall(uint64_t, interrupt_state* state)
 {
 //	con << "enter\n";
 	//	tss0.rsp0 -= 0x100;
 
-	uint64_t tmp;
+//	uint64_t tmp;
 	switch(state->rdi)
 	{
 		case 0:
@@ -145,7 +149,7 @@ void intr_syscall(uint64_t, interrupt_state* state)
 					"sti\n"
 					"hlt");
 			break;
-
+#if 0
 		case 3: // load process 2
 			tss0.rsp0 = kstack2.top<uint64_t>();
 			
@@ -164,6 +168,7 @@ void intr_syscall(uint64_t, interrupt_state* state)
 			state_p2->rsp = tmp;
 
 //			switch_to(state_p1);
+#endif
 	}
 
 //	asm("sti");
@@ -173,15 +178,15 @@ void interrupt_timer(uint64_t, interrupt_state*)
 {
 	con << ".";
 
-	if (tss0.rsp0 == kstack2.top<uint64_t>())
+	if (tss0.rsp0 == kstack2->top<uint64_t>())
 	{
-		tss0.rsp0 = kstack1.top<uint64_t>();
-		switch_to(state_p1);
+		tss0.rsp0 = kstack1->top<uint64_t>();
+		switch_to(&kstack1->state);
 	}
 	else
 	{
-		tss0.rsp0 = kstack2.top<uint64_t>();
-		switch_to(state_p2);
+		tss0.rsp0 = kstack2->top<uint64_t>();
+		switch_to(&kstack2->state);
 	}
 }
 
@@ -194,68 +199,29 @@ void interrupt_kb(uint64_t, interrupt_state*)
 		return;
 
 //	return;
-	if (tss0.rsp0 == kstack2.top<uint64_t>())
+	if (tss0.rsp0 == kstack2->top<uint64_t>())
 	{
-		tss0.rsp0 = kstack1.top<uint64_t>();
-		switch_to(state_p1);
+		tss0.rsp0 = kstack1->top<uint64_t>();
+		switch_to(&kstack1->state);
 		con << "Never happens!\n";
 	}
 	else
 	{
-		tss0.rsp0 = kstack2.top<uint64_t>();
-		switch_to(state_p2);
+		tss0.rsp0 = kstack2->top<uint64_t>();
+		switch_to(&kstack2->state);
 		con << "Never happens!\n";
 	}
 }
 
-struct newTest
-{
-	char s[8192];
-	int a;
-};
-
-extern "C" void *memset(void *s, int c, size_t n)
-{
-	uint8_t* p = (uint8_t*) s;
-
-	while (n--)
-		*p++ = c;
-
-	return s;
-}
-
-
 void kmain()
 {
 	mallocator::test();
-
-#if 0
-	// XXX: Just a test!
-	uint8_t* ppp = (uint8_t*) 0xffffa00000000000;
-	for (int i = 0; i < 126 * 1024 * 1024; i += 0x1000)
-	{ 
-		mem.map_page((uint64_t) ppp, mem.frame_alloc->page());
-		ppp += 0x1000;
-	} 
-	uint64_t* pppp = (uint64_t*) 0xffffa00000000000;
-	for (uint64_t i = 0; i < 126 * 1024 * 1024 / sizeof(uint64_t); i++)
-		pppp[i] = 0x41414141;
-#endif
-
 
 //	pic_sys.disable(pic_sys.to_intr(0));
 
 	interrupts::regist(pic_sys.to_intr(0), interrupt_timer);
 	interrupts::regist(pic_sys.to_intr(1), interrupt_kb);
 	interrupts::regist(42, intr_syscall);
-
-	volatile newTest* nt = new newTest();
-
-	nt->a = 42;
-
-	con << "test: " << nt->a << '\n';
-
-	
 
 //	test();
 
@@ -264,34 +230,21 @@ void kmain()
 	"ltr %%ax"
 	::: "%ax");
 
-	/* SETUP PS 1 */
-	/* Place state at the top of the process' stack */
-	state_p1 = (interrupt_state*) (kstack1.top<uint64_t>() - sizeof(interrupt_state));
-	state_p1->rsp = ((uint64_t) state_p1) + sizeof(uint64_t); /* Because, after popping %rsp itself, it should point to the next register to be popped */
+	uint64_t ustack_p1 = (uint64_t) mallocator::malloc(4096);
+	uint64_t ustack_p1_top = (uint64_t) ustack_p1 + 4096;
 
-	state_p1->iregs.ss = 0x3b;
-	state_p1->iregs.rsp = ustack_p1_top;
-	state_p1->iregs.rflags = 0x202;
-	state_p1->iregs.cs = 0x33;
-	state_p1->iregs.rip = (uint64_t) &user_space;
+	uint64_t ustack_p2 = (uint64_t) mallocator::malloc(4096);
+	uint64_t ustack_p2_top = ustack_p2 + 4096;
 
-
-	/* SETUP PS 2*/
-	/* Place state at the top of the process' stack */
-	state_p2 = (interrupt_state*) (kstack2.top<uint64_t>() - sizeof(interrupt_state));
-	state_p2->rsp = ((uint64_t) state_p2) + sizeof(uint64_t); /* Because, after popping %rsp itself, it should point to the next register to be popped */
-
-	state_p2->iregs.ss = 0x3b;
-	state_p2->iregs.rsp = ustack_p2_top;
-	state_p2->iregs.rflags = 0x202;
-	state_p2->iregs.cs = 0x33;
-	state_p2->iregs.rip = (uint64_t) &user_space2;
+	/* Setup processes */
+	kstack1 = new kstack<4096>((uint64_t) &user_space, ustack_p1_top);
+	kstack2 = new kstack<4096>((uint64_t) &user_space2, ustack_p2_top);
 
 
 	pic_sys.sti();
 
-	tss0.rsp0 = kstack1.top<uint64_t>();
-	switch_to(state_p1);
+	tss0.rsp0 = kstack1->top<uint64_t>();
+	switch_to(&kstack1->state);
 }
 
 extern "C"

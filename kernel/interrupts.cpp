@@ -33,7 +33,7 @@ extern "C" void exception_sec(interrupt_state*){ panic("exception_sec"); }
 extern "C" void exception_page(interrupt_state* state)
 {
 	uint64_t addr = cr2_get();
-	con << "exception_page: rip=0x" << hex_u64(state->iregs.rip) << " addr=0x" << hex_u64(addr) << '\n';
+//	con << "exception_page: rip=0x" << hex_u64(state->iregs.rip) << " addr=0x" << hex_u64(addr) << '\n';
 
 	if (addr < 0x8000000000000000)
 		panic("addr < 0x8000000000000000\n");

@@ -154,6 +154,8 @@ void memory::map_page(uint64_t virt, uint64_t phys)
 	virt &= ~0xfff;
 	phys &= ~0xfff;
 
+//	con << "Mapping virtual page 0x" << hex_u64(virt) << " to phys 0x" << hex_u64(phys) << '\n';
+
 	uint64_t pml4e = (virt >> 39) & 511;
 	uint64_t pdpe = (virt >> 30) & 511;
 	uint64_t pde = (virt >> 21) & 511;
