@@ -107,13 +107,13 @@ void mallocator::test()
 	int ie = 5555;
 
 	uint8_t* a = (uint8_t*) malloc(ia);
-	con << "Malloc a: " << ((uint64_t) a) << '\n';
+//	con << "Malloc a: " << ((uint64_t) a) << '\n';
 	uint8_t* b = (uint8_t*) malloc(ib);
-	con << "Malloc b: " << ((uint64_t) b) << '\n';
+//	con << "Malloc b: " << ((uint64_t) b) << '\n';
 	uint8_t* c = (uint8_t*) malloc(ic);
-	con << "Malloc c: " << ((uint64_t) c) << '\n';
+//	con << "Malloc c: " << ((uint64_t) c) << '\n';
 	uint8_t* d = (uint8_t*) malloc(id);
-	con << "Malloc d: " << ((uint64_t) d) << '\n';
+//	con << "Malloc d: " << ((uint64_t) d) << '\n';
 	uint8_t* e = (uint8_t*) malloc(ie);
 
 	free(c);

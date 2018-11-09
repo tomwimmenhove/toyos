@@ -123,19 +123,8 @@ void switch_to(interrupt_state* state)
 }
 #endif
 
-struct task
-{
-	uint64_t krsp;
-	uint64_t rsp;
-};
-
-
 void intr_syscall(uint64_t, interrupt_state* state)
 {
-//	con << "enter\n";
-	//	tss0.rsp0 -= 0x100;
-
-//	uint64_t tmp;
 	switch(state->rdi)
 	{
 		case 0:
@@ -170,8 +159,6 @@ void intr_syscall(uint64_t, interrupt_state* state)
 //			switch_to(state_p1);
 #endif
 	}
-
-//	asm("sti");
 }
 
 void interrupt_timer(uint64_t, interrupt_state*)
@@ -198,18 +185,15 @@ void interrupt_kb(uint64_t, interrupt_state*)
 	if (ch > 127)
 		return;
 
-//	return;
 	if (tss0.rsp0 == kstack2->top<uint64_t>())
 	{
 		tss0.rsp0 = kstack1->top<uint64_t>();
 		switch_to(&kstack1->state);
-		con << "Never happens!\n";
 	}
 	else
 	{
 		tss0.rsp0 = kstack2->top<uint64_t>();
 		switch_to(&kstack2->state);
-		con << "Never happens!\n";
 	}
 }
 
@@ -240,9 +224,10 @@ void kmain()
 	kstack1 = new kstack<4096>((uint64_t) &user_space, ustack_p1_top);
 	kstack2 = new kstack<4096>((uint64_t) &user_space2, ustack_p2_top);
 
-
+	/* Enable interrupts */
 	pic_sys.sti();
 
+	/* Switch to the first process */
 	tss0.rsp0 = kstack1->top<uint64_t>();
 	switch_to(&kstack1->state);
 }
