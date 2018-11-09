@@ -19,6 +19,9 @@ void mallocator::init(uint64_t virt_start, size_t max_size)
 
 void* mallocator::malloc(size_t size)
 {
+	/* Align */
+	size = (size + 0xf) & ~0xf;
+
 	/* Find a block that's not used with at least enough space. Unless it's the last block, in which
 	 * case we can 'expand' it */
 	auto chunk = head->prev;
@@ -51,12 +54,6 @@ void* mallocator::malloc(size_t size)
 
 	/* Allocate more */
 	auto tail = head->prev;
-	uint64_t end_virt = (((uint64_t) &tail->data[tail->len - 1]) & ~0xfff) + 0x1000;
-	for (size_t i = 0; i < size; i += 0x1000)
-	{
-		end_virt += 0x1000;
-	}
-
 	tail->len += size;
 
 	return malloc(size);
