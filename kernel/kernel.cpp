@@ -91,6 +91,7 @@ void user_space2()
 
 struct __attribute__((packed)) regs
 {
+	/* XXX: Wrap caller-saved registers in DEBUG ifdefs. */
 	uint64_t r15;
 	uint64_t r14;
 	uint64_t r13;
@@ -109,6 +110,8 @@ struct __attribute__((packed)) regs
 
 	uint64_t rip;
 
+	/* Not really a register, but very handy to
+	 * be able to set a return address. */
 	uint64_t ret_ptr;
 };
 
@@ -117,6 +120,7 @@ void dead_task()
 	panic("Can't handle returning tasks yet");
 }
 
+/* Used to start the very first task. */
 void __attribute__ ((noinline)) init_tsk0(uint64_t rip, uint64_t ret, uint64_t rsp)
 {
 	asm volatile(
@@ -157,12 +161,20 @@ void uspace_test()
 	}
 }
 
-void __attribute__ ((noinline)) k_switch(uint64_t& rsp, uint64_t& save_rsp)
+/* Perform a state switch. Current state will be saved on the current stack frame before
+ * saving the stack pointer in save_rsp. Then, the new stack pointer will be loaded from
+ * rsp before finally restoring the state from the new stack frame.
+ * NOTE: If, for any reason, this function could be called to switch between identical stack
+ * frames, make sure that (&rsp == &save_rsp). I.e. if the scheduler schedules the same task
+ * twice in s row, use the actual rsp entry in the task structure as reference for both
+ * arguments, and don't use a copy of rsp! */
+void __attribute__ ((noinline)) state_switch(uint64_t& rsp, uint64_t& save_rsp)
 {   
 	uint64_t rsp_ptr = (uint64_t) &rsp;
 	uint64_t save_rsp_ptr = (uint64_t) &save_rsp;
 
 	asm volatile(
+			/* XXX: Wrap caller-saved registers in DEBUG ifdefs. */
 			/* Save registers of the current task */
 			"pushq %%rax\n"
 			"pushq %%rcx\n"
@@ -295,26 +307,26 @@ void schedule()
 {
 	auto last = current;
 
-	/* Find next task */
 	for(;;)
 	{
 		current = current->next;
 		if (current == nullptr)
 			current = tasks;
+
+		/* Running task? */
 		if (current->running)
 			break;
 
+		/* Nothing to do? */
 		if (current == last)
-		{
 			current = task_idle;
-		}
 	}
 
 	/* Setup new kernel stack */
 	tss0.rsp0 = current->tss_rsp;
 
 	/* Switch tasks */
-	k_switch(current->rsp, last->rsp);
+	state_switch(current->rsp, last->rsp);
 }
 
 void tsk_idle()
@@ -329,19 +341,22 @@ void tsk_idle()
 
 void k_test_init()
 {
-	/* Use the current stack for the idle task.
-	 * WARNING: THIS ASSUMES A SINGLE PAGE! */
-	uint64_t sp;
-	asm volatile("mov %%rsp, %0" : "=r" (sp));
-	sp = (sp & ~0xfff) + 0x1000;
-
-	//task_idle = new task(0, sp, (uint64_t) new uint8_t[4096] + 4096);
-	task_idle = new task(0, sp, 0 /* No need for a tss_rsp since it will never be in userspace (no privledge changes) */);
+	/* Use the top of our current stack. It's safe to smash it, since we won't return.
+	 * We'll use 0 for the tss_rsp, because the idle task is never in user space and
+	 * will never cause a privilege change. */
+	task_idle = new task(0, KERNEL_STACK_TOP, 0);
 	task_add(task_idle);
 
+	/* Here we set up our stack for the task. One initial page. The rip entry is set
+	 * to the entry point of the function that will, in turn, call user space */
 	ustack1 = new user_stack<4096>(&k_test1, &dead_task);
 	ustack2 = new user_stack<4096>(&k_test2, &dead_task);
 
+	/* Set up the task. Use the registers state (rip and return pointer, as set above) as
+	 * stack pointer. This way, when the scheduler comes along and performs the switch to
+	 * this task, it will neatly pop those registers, and 'return' to the function
+	 * pointed to by state->rip. After which that function performs the actual jump
+	 * to userspace. */
 	task1 = new task(1, (uint64_t) &ustack1->state, (uint64_t) new uint8_t[4096] + 4096);
 	task2 = new task(2, (uint64_t) &ustack2->state, (uint64_t) new uint8_t[4096] + 4096);
 
@@ -355,8 +370,12 @@ void k_test_init()
 	tss0.rsp0 = 0;
 	current = task_idle;
 
+	/* Enable global interrupts */
 	pic_sys.sti();
-	init_tsk0((uint64_t) tsk_idle, (uint64_t) &dead_task, sp);
+
+	/* Start the idle task. Since we will never return from this, we can safely set the
+	 * stack pointer to the top of our current stack frame. */
+	init_tsk0((uint64_t) tsk_idle, (uint64_t) &dead_task, KERNEL_STACK_TOP);
 
 	panic("Idle task returned!?");
 }
@@ -447,7 +466,7 @@ void interrupt_timer(uint64_t, interrupt_state*)
 //	uint64_t test_rsp = 0;
 
 //	con << ".";
-//	k_switch(rsp2, &rsp1);
+//	state_switch(rsp2, &rsp1);
 	schedule();
 	return;
 
