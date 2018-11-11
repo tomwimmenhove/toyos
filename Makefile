@@ -1,6 +1,6 @@
 all:
-	make -C kernel
-	make -C multiboot
+	make -j8 -C kernel
+	make -j8 -C multiboot
 	rm -f image.iso
 	make image.iso
 
@@ -16,6 +16,9 @@ simu: all
 
 simugdb: all
 	qemu-system-x86_64 -device isa-debug-exit,iobase=0xf4,iosize=0x04 -drive file=image.iso,format=raw -debugcon stdio -s -monitor unix:qemu.mon,server,nowait -S
+
+gdbkern: all
+	./gdb_kernel.sh
 
 monitor:
 	minicom -D unix\#qemu.mon

@@ -11,15 +11,16 @@ LDFLAGS = crti.o $(shell $(CC) $(CFLAGS) -print-file-name=crtbegin.o) \
 
 CC = x86_64-elf-gcc
 CPP = x86_64-elf-g++
-AS = x86_64-elf-as
+#AS = x86_64-elf-as
+AS = x86_64-elf-gcc # Handles defines through the cpp pre-processor
 LD = x86_64-elf-ld
 
 
 all: kernel.elf
 
 IOBJS = crti.o crtn.o
-OBJS = debug.o   kernel.o memory.o   malloc.o   frame_alloc.o gdt.o   idt.o   interrupts.o   pic.o   console.o   syscall.o interrupt_jump.o new.o
-SRCS = debug.cpp kernel.o memory.cpp malloc.cpp frame_alloc.o gdt.cpp idt.cpp interrupts.cpp pic.cpp console.cpp syscall.S interrupt_jump.S new.cpp
+OBJS = debug.o   kernel.o memory.o   malloc.o   frame_alloc.o gdt.o   idt.o   interrupts.o   pic.o   console.o   syscall.o interrupt_jump.o new.o   task_helper.o
+SRCS = debug.cpp kernel.o memory.cpp malloc.cpp frame_alloc.o gdt.cpp idt.cpp interrupts.cpp pic.cpp console.cpp syscall.S interrupt_jump.S new.cpp task_helper.S
 
 %.o: %.S
 	$(AS) -c $< -o $@
