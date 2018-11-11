@@ -36,7 +36,7 @@
 	popq %r15
 .endm
 
-# Exception that push no error code: push a dummy error code onto the stack
+// Exception that push no error code: push a dummy error code onto the stack
 .macro INTR_EXCEPT_NO_ERRCODE n body
 .global intr_\n
 .type intr_\n, @function
@@ -48,7 +48,7 @@ intr_\n:
 .align 0x10
 .endm
 
-# Exceptions that DO push an error code
+// Exceptions that DO push an error code
 .macro INTR_EXCEPT_ERRCODE n body
 .global intr_\n
 .type intr_\n, @function
@@ -59,7 +59,7 @@ intr_\n:
 .align 0x10
 .endm
 
-# Normal interrupts: move the interrupt number into the first argument
+// Normal interrupts: move the interrupt number into the first argument
 .macro INTR_NORMAL n body
 .global intr_\n
 .type intr_\n, @function
@@ -72,7 +72,7 @@ jmp \body
 .align 0x10
 .endm
 
-# Normal interrupt handler body
+// Normal interrupt handler body
 .macro BODY_NORMAL name target
 \name:
 	PUSHER
@@ -86,7 +86,7 @@ jmp \body
 	iretq
 .endm
 
-# Exception body handler: fix the stack (error code had been pushed))
+// Exception body handler: fix the stack (error code had been pushed))
 .macro BODY_EXCEPT name target
 \name:
 	PUSHER
@@ -100,10 +100,10 @@ jmp \body
 	iretq
 .endm
 
-# define the 'normal' interrupt body handler
+// define the 'normal' interrupt body handler
 BODY_NORMAL intr_body interrupt_handler
 
-# define the exception body handlers
+// define the exception body handlers
 BODY_EXCEPT intr_body_unhandled exception_unhandled
 BODY_EXCEPT intr_body_div_by_zero exception_div_by_zero
 BODY_EXCEPT intr_body_debug exception_debug
@@ -126,12 +126,12 @@ BODY_EXCEPT intr_body_virt exception_virt
 BODY_EXCEPT intr_body_sec exception_sec
 BODY_EXCEPT intr_body_page exception_page
 
-# --- Done setting things up. Following are the actual 'entries' in our list
+// --- Done setting things up. Following are the actual 'entries' in our list
 
-# Since all entries are 0x10 byte apart we MUST align here.
+// Since all entries are 0x10 byte apart we MUST align here.
 .align 0x10
 
-# All exception entries
+// All exception entries
 INTR_EXCEPT_NO_ERRCODE 0 intr_body_div_by_zero
 INTR_EXCEPT_NO_ERRCODE 1 intr_body_debug
 INTR_EXCEPT_NO_ERRCODE 2 intr_body_nmi
@@ -165,7 +165,7 @@ INTR_EXCEPT_NO_ERRCODE 29 intr_body_unhandled
 INTR_EXCEPT_ERRCODE 30 intr_body_sec
 INTR_EXCEPT_NO_ERRCODE 31 intr_body_unhandled
 
-# The rest are 'normal' interrupts
+// The rest are 'normal' interrupts
 .set intr_n, 32
 .rept (256 - 32)
 	INTR_NORMAL %intr_n intr_body

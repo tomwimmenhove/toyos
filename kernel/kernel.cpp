@@ -68,33 +68,6 @@ void user_space2()
 	}
 }
 
-
-struct __attribute__((packed)) regs
-{
-	/* XXX: Wrap caller-saved registers in DEBUG ifdefs. */
-	uint64_t r15;
-	uint64_t r14;
-	uint64_t r13;
-	uint64_t r12;
-	uint64_t r11;
-	uint64_t r10;
-	uint64_t r9;
-	uint64_t r8;
-	uint64_t rdi;
-	uint64_t rsi;
-	uint64_t rbp;
-	uint64_t rbx;
-	uint64_t rdx;
-	uint64_t rcx;
-	uint64_t rax;
-
-	uint64_t rip;
-
-	/* Not really a register, but very handy to
-	 * be able to set a return address. */
-	uint64_t ret_ptr;
-};
-
 void dead_task()
 {
 	panic("Can't handle returning tasks yet");
@@ -112,7 +85,11 @@ template<size_t S>
 struct __attribute__((packed)) user_stack
 {
 	user_stack(void *rip, void(*ret)())
-		: lsp(sizeof(space)), state { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (uint64_t) rip, (uint64_t) ret }
+		: lsp(sizeof(space)), state {
+#ifdef TASK_SWITCH_SAVE_CALLER_SAVED
+			0, 0, 0, 0, 0, 0, 0, 0, 0,
+#endif
+			0, 0, 0, 0, 0, 0, (uint64_t) rip, (uint64_t) ret }
 	{   
 		memset(space, 0, sizeof(space));
 	}
@@ -138,10 +115,10 @@ struct __attribute__((packed)) user_stack
 
 	private:
 	uint64_t lsp;
-	uint8_t space[S - sizeof(regs) - sizeof(uint64_t)];
+	uint8_t space[S - sizeof(switch_regs) - sizeof(uint64_t)];
 
 	public:
-	regs state;
+	switch_regs state;
 };
 
 user_stack<4096>* ustack1;
@@ -261,12 +238,19 @@ void k_test_init()
 	ustack1 = new user_stack<4096>((void*) &uspace_jump_trampoline, &dead_task);
 	ustack2 = new user_stack<4096>((void*) &uspace_jump_trampoline, &dead_task);
 
+#ifdef TASK_SWITCH_SAVE_CALLER_SAVED
 	ustack1->state.rdi = (uint64_t) &k_test_user1;
 	ustack1->state.rsi = ustack1->top<uint64_t>();
 
 	ustack2->state.rdi = (uint64_t) &k_test_user2;
 	ustack2->state.rsi = ustack2->top<uint64_t>();
+#else
+	ustack1->state.r12 = (uint64_t) &k_test_user1;
+	ustack1->state.r13 = ustack1->top<uint64_t>();
 
+	ustack2->state.r12 = (uint64_t) &k_test_user2;
+	ustack2->state.r13 = ustack2->top<uint64_t>();
+#endif
 	ustack1->push<uint64_t>(0xaaaaaaaabbbbbbbb);
 
 
