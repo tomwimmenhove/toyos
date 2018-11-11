@@ -1,5 +1,6 @@
 #include <stddef.h>
 
+#include "config.h"
 #include "gdt.h"
 
 /* Setup our global descriptor table */
@@ -30,14 +31,14 @@ void gdt_init()
 {
 	for (size_t i = 0; i < sizeof(gdt); i += sizeof(desc_null))
 		gdt_load_entry(0x00, kernel_null_descriptor);
-	gdt_load_entry(0x08, kernel_code_segment_descriptor);
-	gdt_load_entry(0x10, kernel_data_segment_descriptor);
-	gdt_load_entry(0x18, interrupt_code_segment_descriptor);
+	gdt_load_entry(KERNEL_CS, kernel_code_segment_descriptor);
+	gdt_load_entry(KERNEL_DS, kernel_data_segment_descriptor);
+	gdt_load_entry(INTR_CS, interrupt_code_segment_descriptor);
 
-	gdt_load_entry(0x20, desc_tss0);
+	gdt_load_entry(TSS0, desc_tss0);
 
-	gdt_load_entry(0x30, user_code_segment_descriptor);
-	gdt_load_entry(0x38, user_data_segment_descriptor);
+	gdt_load_entry(USER_CS, user_code_segment_descriptor);
+	gdt_load_entry(USER_DS, user_data_segment_descriptor);
 
 	/* Load the GDT register */
 	gdt_ptr.lgdt();
