@@ -27,5 +27,7 @@ extern "C"
 
 #define KSTACK_SIZE	(PAGE_SIZE)
 
+#define SYSCALL_INTR	42
+
 #endif /* _CONFIG_H */
 

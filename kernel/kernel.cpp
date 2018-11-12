@@ -16,21 +16,8 @@
 #include "console.h"
 #include "syscall.h"
 #include "task_helper.h"
-
-extern "C" void __cxa_pure_virtual()
-{
-	panic("Virtual method called");
-}
-
-extern "C" void *memset(void *s, int c, size_t n)
-{
-	uint8_t* p = (uint8_t*) s;
-
-	while (n--)
-		*p++ = c;
-
-	return s;
-}
+#include "task.h"
+#include "klib.h"
 
 void print_stack_use()
 {
@@ -42,64 +29,8 @@ void dead_task()
 	panic("Can't handle returning tasks yet");
 }
 
+uint64_t jiffies = 0;
 
-template<size_t S>
-struct __attribute__((packed)) user_stack
-{
-	user_stack(void *rip, void(*ret)())
-		: lsp(sizeof(space)), state {
-#ifdef TASK_SWITCH_SAVE_CALLER_SAVED
-			0, 0, 0, 0, 0, 0, 0, 0, 0,
-#endif
-			0, 0, 0, 0, 0, 0, (uint64_t) rip, (uint64_t) ret }
-	{   
-		memset(space, 0, sizeof(space));
-	}
-
-	template<typename T>
-		inline T top() { return (T) (((uint64_t) this) + S); }
-
-	template<typename T>
-		inline void push(T x)
-		{   
-			lsp -= sizeof(T);
-			void* p = &space[lsp];
-			*(T*)p = x;
-		}
-
-	template<typename T>
-		inline T pop()
-		{   
-			void* p = &space[lsp];
-			lsp += sizeof(T);
-			return *(T*) p;
-		};
-
-private:
-	uint64_t lsp;
-	uint8_t space[S - sizeof(switch_regs) - sizeof(uint64_t)];
-
-public:
-	switch_regs state;
-};
-
-struct task
-{
-	task(int id, uint64_t rsp, uint64_t tss_rsp)
-		: id(id), rsp(rsp), tss_rsp(tss_rsp), running(false)
-	{ }
-
-	int id;
-
-	uint64_t rsp;		/* Saved stack pointer */
-	uint64_t tss_rsp;	/* Kernel stack top */
-
-	bool (*wait_on)();
-
-	bool running;
-
-	task* next;
-};
 
 task* tasks = nullptr;
 task* current = nullptr;
@@ -110,7 +41,7 @@ task* task2;
 
 void schedule();
 
-uint64_t jiffies = 0;
+
 
 extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 {
@@ -124,7 +55,8 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	}
 }
 
-uint8_t last_code = 0;
+static uint8_t last_code = 0;
+
 void k_test_user2(uint64_t arg0, uint64_t arg1)
 {
 	ucon << "tsk 2: arg0: " << arg0 << '\n';
@@ -133,7 +65,7 @@ void k_test_user2(uint64_t arg0, uint64_t arg1)
 	for (;;)
 	{
 		syscall(8);
-		ucon << '2';
+		ucon << '(' << last_code << ')';
 	}
 }
 
@@ -155,25 +87,14 @@ void schedule()
 		if (current == nullptr)
 			current = tasks;
 
-		/* Running task? */
-		if (current->running)
-		{
-			/* Is it waiting on something? */
-			if (current->wait_on)
-			{
-				if (current->wait_on())
-					break;
-			}
-			else
-			{
-				break;
-			}
-		}
+		if (current->can_run())
+			break;
 
-		/* Nothing to do? */
 		if (current == last)
 		{
-			current = task_idle;
+			/* Nothing to do? */
+			if (!current->can_run())
+				current = task_idle;
 			break;
 		}
 	}
@@ -242,8 +163,8 @@ void k_test_init()
 	ustack2->state.r14 = 44;
 	ustack2->state.r15 = 45;
 #endif
-	ustack1->push<uint64_t>(0xaaaaaaaabbbbbbbb);
 
+	con << "Creating tasks\n";
 
 	/* Set up the task. Use the registers state (rip and return pointer, as set above) as
 	 * stack pointer. This way, when the scheduler comes along and performs the switch to
@@ -253,6 +174,7 @@ void k_test_init()
 	task1 = new task(1, (uint64_t) &ustack1->state, (uint64_t) new uint8_t[KSTACK_SIZE] + KSTACK_SIZE);
 	task2 = new task(2, (uint64_t) &ustack2->state, (uint64_t) new uint8_t[KSTACK_SIZE] + KSTACK_SIZE);
 
+	con << "Created tasks\n";
 
 	task_add(task1);
 	task_add(task2);
@@ -267,6 +189,8 @@ void k_test_init()
 	/* Enable global interrupts */
 	pic_sys.sti();
 
+	con << "BOOM\n";
+
 	/* Start the idle task. Since we will never return from this, we can safely set the
 	 * stack pointer to the top of our current stack frame. */
 	init_tsk0((uint64_t) tsk_idle, (uint64_t) &dead_task, KERNEL_STACK_TOP);
@@ -274,21 +198,23 @@ void k_test_init()
 	panic("Idle task returned!?");
 }
 
-uint64_t now;
-
+#if 0
 static bool wait_jiffies()
 {
-	return (jiffies - now) > 18;
+	return (jiffies - now) >= 18;
+//	return (jiffies - now) > 0;
 }
 
 static bool wait_key()
 {
 	return last_code != 0;
 }
+#endif
 
 void intr_syscall(uint64_t, interrupt_state* state)
 {
-	now = jiffies;
+	auto now = jiffies;
+
 
 	switch(state->rdi)
 	{
@@ -314,16 +240,16 @@ void intr_syscall(uint64_t, interrupt_state* state)
 			break;
 
 		case 7:
-			now = jiffies;
-			current->wait_on = wait_jiffies;
+			current->wait_for = [now]() { return (jiffies - now) >= 18; };
 			schedule();
+			current->wait_for.reset();
 			break;
 
 		case 8:
-			now = 0;
-			current->wait_on = wait_key;
-			schedule();
 			last_code = 0;
+			current->wait_for = []() { return last_code != 0; };
+			schedule();
+			current->wait_for.reset();
 			break;
 	}
 }
@@ -331,7 +257,9 @@ void intr_syscall(uint64_t, interrupt_state* state)
 void interrupt_timer(uint64_t, interrupt_state*)
 {
 	jiffies++;
-	schedule();
+
+	if (jiffies % 5 == 0)
+		schedule();
 }
 
 void interrupt_kb(uint64_t, interrupt_state*)
@@ -412,4 +340,5 @@ void _start(kernel_boot_info* kbi)
 
 	panic("kmain() returned!?");
 }
+
 

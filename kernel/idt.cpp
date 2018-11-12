@@ -13,7 +13,7 @@ void idt_init()
 	for (int i = 0; i < 256; i++)
 	{
 		// XXX: Hard-coded syscall entry. Ugly fucker!
-		if (i == 42)
+		if (i == SYSCALL_INTR)
 			idt[i] = idt_entry(((uint64_t) &intr_0) + i * 0x10, 0x18, 0, 0x8e + (3 << 5));
 		else
 			idt[i] = idt_entry(((uint64_t) &intr_0) + i * 0x10, 0x18, 0, 0x8e + 0);

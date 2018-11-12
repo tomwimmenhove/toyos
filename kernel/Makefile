@@ -3,24 +3,22 @@ $(shell mkdir -p $(DEPDIR) >/dev/null)
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 POSTCOMPILE = @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
-CFLAGS = -O2 -I ../common -Wall -Wextra -Werror -nostdlib -ffreestanding -lgcc -mcmodel=kernel -mno-red-zone -ggdb $(DEPFLAGS)
-CPPFLAGS = -O2 -I ../common -Wall -Wextra -Werror -nostdlib -ffreestanding -lgcc -fno-exceptions -fno-rtti -std=c++17 -mcmodel=kernel -mno-red-zone -ggdb $(DEPFLAGS)
+CFLAGS = -O2 -I ../common -I ../newlib/c++/4.9.3/ -I ../newlib/ -Wall -Wextra -Werror -nostdlib -ffreestanding -lgcc -mcmodel=kernel -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -ggdb $(DEPFLAGS)
+CPPFLAGS = -O2 -I ../common -I ../newlib/c++/4.9.3/ -I ../newlib/ -Wall -Wextra -Werror -nostdlib -ffreestanding -lgcc -fno-exceptions -fno-rtti -std=c++17 -mcmodel=kernel -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -ggdb $(DEPFLAGS)
 LDFLAGS = crti.o $(shell $(CC) $(CFLAGS) -print-file-name=crtbegin.o) \
 	  $(shell $(CC) $(CFLAGS) -print-file-name=crtend.o) crtn.o \
 	  -T linker.ld -z max-page-size=4096
 
 CC = x86_64-elf-gcc
 CPP = x86_64-elf-g++
-#AS = x86_64-elf-as
-AS = x86_64-elf-gcc # Handles defines through the cpp pre-processor
+AS = x86_64-elf-gcc # Handles defines through the cpp pre-processor, as does not.
 LD = x86_64-elf-ld
-
 
 all: kernel.elf
 
 IOBJS = crti.o crtn.o
-OBJS = debug.o   kernel.o memory.o   malloc.o   frame_alloc.o gdt.o   idt.o   interrupts.o   pic.o   console.o   syscall.o interrupt_jump.o new.o   task_helper.o
-SRCS = debug.cpp kernel.o memory.cpp malloc.cpp frame_alloc.o gdt.cpp idt.cpp interrupts.cpp pic.cpp console.cpp syscall.S interrupt_jump.S new.cpp task_helper.S
+OBJS = debug.o   kernel.o memory.o   malloc.o   frame_alloc.o gdt.o   idt.o   interrupts.o   pic.o   console.o   syscall.o interrupt_jump.o new.o   task_helper.o klib.o
+SRCS = debug.cpp kernel.o memory.cpp malloc.cpp frame_alloc.o gdt.cpp idt.cpp interrupts.cpp pic.cpp console.cpp syscall.S interrupt_jump.S new.cpp task_helper.S klib.cpp
 
 %.o: %.S
 	$(AS) -c $< -o $@
