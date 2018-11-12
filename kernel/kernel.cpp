@@ -43,79 +43,6 @@ void dead_task()
 }
 
 
-
-struct wait_fn_call_base {
-	virtual bool operator()() = 0;
-	virtual ~wait_fn_call_base() {}
-};
-
-template <typename F>
-struct wait_fn_call : wait_fn_call_base {
-	inline wait_fn_call(F functor)
-		: functor(functor)
-	{}
-	virtual bool operator()() { return functor(); }
-private:
-	F functor;
-};
-
-class wait_fn
-{
-public:
-	inline wait_fn()
-		: fn(nullptr)
-	{ }
-	template <typename F>
-	wait_fn(F f)
-	{ 
-		static wait_fn_call<F> q;
-	
-		q = wait_fn_call<F>{f};
-		//(f);
-		fn = &q;
-	} 
-
-	//nline wait_fn(F f)
-//
-//		con << "before c\n";
-//		fn = new wait_fn_call<F>(f);
-//		con << "after c\n";
-//
-
-//	template <typename F>
-//	inline void reset(F f)
-//	{
-//		if (isset())
-//			delete fn;
-//		fn = new wait_fn_call<F>(f);
-//	}
-
-	inline bool isset() { return fn != nullptr; }
-	inline bool operator()() { return (*fn)();}
-
-#if 0
-	~wait_fn()
-	{
-//		con << "before d\n";
-		if (isset())
-		{
-		con << "before delete\n";
-				delete fn;
-		con << "before after\n";
-		}
-//		con << "after d\n";
-
-	}
-#endif
-
-private:
-	wait_fn_call_base* fn;
-};
-
-
-
-
-
 template<size_t S>
 struct __attribute__((packed)) user_stack
 {
@@ -167,8 +94,7 @@ struct task
 	uint64_t rsp;		/* Saved stack pointer */
 	uint64_t tss_rsp;	/* Kernel stack top */
 
-	wait_fn wait_for;
-//	bool (*wait_on)();
+	bool (*wait_on)();
 
 	bool running;
 
@@ -233,9 +159,9 @@ void schedule()
 		if (current->running)
 		{
 			/* Is it waiting on something? */
-			if (current->wait_for.isset())
+			if (current->wait_on)
 			{
-				if (current->wait_for())
+				if (current->wait_on())
 					break;
 			}
 			else
@@ -246,8 +172,13 @@ void schedule()
 
 		/* Nothing to do? */
 		if (current == last)
+		{
 			current = task_idle;
+			break;
+		}
 	}
+
+//	con << "Switched to task " << current->id << '\n';
 
 	/* Setup new kernel stack */
 	tss0.rsp0 = current->tss_rsp;
@@ -326,7 +257,7 @@ void k_test_init()
 	task_add(task1);
 	task_add(task2);
 
-	task_idle->running = true;
+//	task_idle->running = true;
 	task1->running = true;
 	task2->running = true;
 
@@ -343,33 +274,21 @@ void k_test_init()
 	panic("Idle task returned!?");
 }
 
-__extension__ typedef int __guard __attribute__((mode(__DI__)));
+uint64_t now;
 
-extern "C" int __cxa_atexit(void (*)(void*), void*, void*) { return 0;}
-
-extern "C" int __cxa_guard_acquire (__guard *);
-extern "C" void __cxa_guard_release (__guard *);
-extern "C" void __cxa_guard_abort (__guard *);
-
-extern "C" int __cxa_guard_acquire (__guard *g) 
+static bool wait_jiffies()
 {
-	return !*(char *)(g);
+	return (jiffies - now) > 18;
 }
 
-extern "C" void __cxa_guard_release (__guard *g)
+static bool wait_key()
 {
-	*(char *)g = 1;
+	return last_code != 0;
 }
-
-extern "C" void __cxa_guard_abort (__guard *)
-{
-
-}
-
 
 void intr_syscall(uint64_t, interrupt_state* state)
 {
-	uint64_t now = jiffies;
+	now = jiffies;
 
 	switch(state->rdi)
 	{
@@ -396,18 +315,13 @@ void intr_syscall(uint64_t, interrupt_state* state)
 
 		case 7:
 			now = jiffies;
-			task1->wait_for = [=]()
-			{
-				con << "now: " << now << '\n';
-				return ((jiffies - now) > 18);
-			};
+			current->wait_on = wait_jiffies;
 			schedule();
 			break;
 
 		case 8:
 			now = 0;
-			/* wait for key */
-			current->wait_for = []() { return (last_code != 0); };
+			current->wait_on = wait_key;
 			schedule();
 			last_code = 0;
 			break;
