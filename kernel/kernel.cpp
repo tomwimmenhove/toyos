@@ -121,8 +121,8 @@ struct __attribute__((packed)) user_stack
 	switch_regs state;
 };
 
-user_stack<4096>* ustack1;
-user_stack<4096>* ustack2;
+user_stack<PAGE_SIZE>* ustack1;
+user_stack<PAGE_SIZE>* ustack2;
 
 struct task
 {
@@ -235,8 +235,8 @@ void k_test_init()
 
 	/* Here we set up our stack for the task. One initial page. The rip entry is set
 	 * to the entry point of the function that will, in turn, call user space */
-	ustack1 = new user_stack<4096>((void*) &uspace_jump_trampoline, &dead_task);
-	ustack2 = new user_stack<4096>((void*) &uspace_jump_trampoline, &dead_task);
+	ustack1 = new user_stack<PAGE_SIZE>((void*) &uspace_jump_trampoline, &dead_task);
+	ustack2 = new user_stack<PAGE_SIZE>((void*) &uspace_jump_trampoline, &dead_task);
 
 #ifdef TASK_SWITCH_SAVE_CALLER_SAVED
 	ustack1->state.rdi = (uint64_t) &k_test_user1;
@@ -259,8 +259,8 @@ void k_test_init()
 	 * this task, it will neatly pop those registers, and 'return' to the function
 	 * pointed to by state->rip. After which that function performs the actual jump
 	 * to userspace. */
-	task1 = new task(1, (uint64_t) &ustack1->state, (uint64_t) new uint8_t[4096] + 4096);
-	task2 = new task(2, (uint64_t) &ustack2->state, (uint64_t) new uint8_t[4096] + 4096);
+	task1 = new task(1, (uint64_t) &ustack1->state, (uint64_t) new uint8_t[PAGE_SIZE] + PAGE_SIZE);
+	task2 = new task(2, (uint64_t) &ustack2->state, (uint64_t) new uint8_t[PAGE_SIZE] + PAGE_SIZE);
 
 
 	task_add(task1);
@@ -348,8 +348,8 @@ void kmain()
 	"ltr %%ax"
 	::: "%ax");
 
-	uint64_t ps = (uint64_t) mallocator::malloc(4096);
-	uint64_t ps_top = ps + 4096;
+	uint64_t ps = (uint64_t) mallocator::malloc(PAGE_SIZE);
+	uint64_t ps_top = ps + PAGE_SIZE;
 
 	tss0.rsp0 = ps_top;
 //	pic_sys.sti();

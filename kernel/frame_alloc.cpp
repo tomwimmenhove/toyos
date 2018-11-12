@@ -8,10 +8,10 @@ uint64_t frame_alloc_dumb::page()
 {
 	uint64_t p = alloc_ptr;
 	while ((p >= kbi->alloc_first && p < kbi->alloc_end) ||
-			(p >= memory::get_phys((uint64_t) &_code_start) && p <= memory::get_phys((uint64_t) &_data_end - 0x1000)))
-		p += 0x1000;
+			(p >= memory::get_phys((uint64_t) &_code_start) && p <= memory::get_phys((uint64_t) &_data_end - PAGE_SIZE)))
+		p += PAGE_SIZE;
 
-	alloc_ptr = p + 0x1000;
+	alloc_ptr = p + PAGE_SIZE;
 
 	if (p >= alloc_ptr_end)
 		return 0;
@@ -75,7 +75,7 @@ uint64_t frame_alloc_bitmap::page()
 	if (p == SIZE_MAX)
 		panic("OOM during frame_alloc_bitmap::page()");
 	set(p);
-	return p * 0x1000;
+	return p * PAGE_SIZE;
 }
 
 uint64_t frame_alloc_bitmap::mem_free()
@@ -83,7 +83,7 @@ uint64_t frame_alloc_bitmap::mem_free()
 	uint64_t tot = 0;
 	for (size_t i = 0; i < size; i++)
 		if (!at(i))
-			tot += 0x1000;
+			tot += PAGE_SIZE;
 
 	return tot;
 }

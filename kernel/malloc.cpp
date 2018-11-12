@@ -1,4 +1,5 @@
 #include "malloc.h"
+#include "config.h"
 
 mallocator_chunk* mallocator::head;
 uint64_t mallocator::virt_start;
@@ -14,7 +15,7 @@ void mallocator::init(uint64_t virt_start, size_t max_size)
 	head->next = head;
 	head->prev = head;
 	head->used = 0;
-	head->len = 0x1000 - sizeof(mallocator_chunk);
+	head->len = PAGE_SIZE - sizeof(mallocator_chunk);
 }
 
 void* mallocator::malloc(size_t size)
@@ -95,7 +96,7 @@ void mallocator::handle_pg_fault(interrupt_state*, uint64_t addr)
 {
 	/* Map the page if it's our's */
 	if (addr >= virt_start && addr < virt_start + max_size)
-		memory::map_page(addr & ~0xfff, memory::frame_alloc->page());
+		memory::map_page(addr & ~(PAGE_SIZE - 1), memory::frame_alloc->page());
 }
 
 void mallocator::test()

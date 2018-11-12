@@ -52,7 +52,7 @@ void memory::init(kernel_boot_info* kbi)
 	auto end_page = largest_region_ptr + largest_region_len;
 
 	/* We need one bit per page */
-	uint64_t bitmap_size = ((top + 0xfff) / 0x1000 + 7) / 8;
+	uint64_t bitmap_size = ((top + (PAGE_SIZE - 1)) / PAGE_SIZE + 7) / 8;
 	uint8_t* bitmapd = (uint8_t*) 0xffffffff40000000;
 
 	/* Create our temporary 'dumb' page frame allocator */
@@ -71,11 +71,11 @@ void memory::init(kernel_boot_info* kbi)
 		}
 
 		map_page((uint64_t) p, (uint64_t) pg);
-		p += 0x1000;
-		allocced += 0x1000;
+		p += PAGE_SIZE;
+		allocced += PAGE_SIZE;
 	}
 	/* Construct the frame_alloc_bitmap class at it's fixed address */
-	frame_alloc = new(reinterpret_cast<void*>(bitmapd)) frame_alloc_bitmap(top / 0x1000);
+	frame_alloc = new(reinterpret_cast<void*>(bitmapd)) frame_alloc_bitmap(top / PAGE_SIZE);
 
 	/* Setup the frame_alloc_bitmap and unmap unused pages */
 	setup_usage(mb_mmap_tag, top);
@@ -101,13 +101,13 @@ void memory::clean_page_tables()
 	volatile uint64_t* pml4 = (uint64_t*) PG_PML4;
 	for (int i = 0; i < 0x200; i++) if (pml4[i] & 1)
 	{
-		temp_page<uint64_t> pdp(tmp_virt, pml4[i] & ~0xfff);
+		temp_page<uint64_t> pdp(tmp_virt, pml4[i] & ~(PAGE_SIZE - 1));
 		for (int j = 0; j < 0x200; j++) if (pdp[j] & 1)
 		{
-			temp_page<uint64_t> pd(tmp_virt + 0x1000, pdp[j] & ~0xfff);
+			temp_page<uint64_t> pd(tmp_virt + PAGE_SIZE, pdp[j] & ~(PAGE_SIZE - 1));
 			for (int k = 0; k < 0x200; k++) if (pd[k] & 1)
 			{
-				temp_page<uint64_t> pt(tmp_virt + 0x2000, pd[k] & ~0xfff);
+				temp_page<uint64_t> pt(tmp_virt + PAGE_SIZE * 2, pd[k] & ~(PAGE_SIZE - 1));
 				for (int l = 0; l < 0x200; l++) if (pt[l] & 1)
 				{
 					uint64_t virt = ((uint64_t) i) << 39 | ((uint64_t) j) << 30 |
@@ -116,7 +116,7 @@ void memory::clean_page_tables()
 					{
 						/* Mark the ones in the 'higher half' as used */
 						virt |= 0xffff000000000000;
-						if (!(virt >= tmp_virt && virt <= tmp_virt + 0x2000) )
+						if (!(virt >= tmp_virt && virt <= tmp_virt + PAGE_SIZE * 2) )
 							get_bitmap()->set(pt[l] >> 12);
 					}
 				}
@@ -128,7 +128,7 @@ void memory::clean_page_tables()
 void memory::setup_usage(multiboot_tag_mmap* mb_mmap_tag, uint64_t memtop)
 {
 	/* Set all bits */
-	get_bitmap()->set_range(0, memtop / 0x1000);
+	get_bitmap()->set_range(0, memtop / PAGE_SIZE);
 
 	/* Iterate over the memory map again, and reset available bits. */
 	multiboot_mmap_entry *entry;
@@ -137,11 +137,11 @@ void memory::setup_usage(multiboot_tag_mmap* mb_mmap_tag, uint64_t memtop)
 	{
 		if (entry->type == MULTIBOOT_MEMORY_AVAILABLE)
 		{
-			uint64_t start = (entry->addr + 0xfff) & ~0xfff;
-			uint64_t end = (entry->addr + entry->len) & ~0xfff;
+			uint64_t start = (entry->addr + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1);
+			uint64_t end = (entry->addr + entry->len) & ~(PAGE_SIZE - 1);
 
 			if (end > start)
-				get_bitmap()->reset_range(start / 0x1000, end / 0x1000);
+				get_bitmap()->reset_range(start / PAGE_SIZE, end / PAGE_SIZE);
 		}
 	}
 
@@ -151,8 +151,8 @@ void memory::setup_usage(multiboot_tag_mmap* mb_mmap_tag, uint64_t memtop)
 
 void memory::map_page(uint64_t virt, uint64_t phys)
 {
-	virt &= ~0xfff;
-	phys &= ~0xfff;
+	virt &= ~(PAGE_SIZE - 1);
+	phys &= ~(PAGE_SIZE - 1);
 
 //	con << "Mapping virtual page 0x" << hex_u64(virt) << " to phys 0x" << hex_u64(phys) << '\n';
 
@@ -199,7 +199,7 @@ void memory::clear_page(void* page)
 
 void memory::unmap_page(uint64_t virt)
 {
-	virt &= ~0xfff;
+	virt &= ~(PAGE_SIZE - 1);
 	uint64_t pte = (virt >> 12) & 511;
 	volatile uint64_t* pt = (uint64_t*) (PG_PT | ((virt >>  9) & 0x0000007ffffff000ull) );
 
@@ -215,7 +215,7 @@ uint64_t memory::get_phys(uint64_t virt)
 	uint64_t* pt = (uint64_t*) PG_PT;
 	uint64_t pte = virt >> 12;
 
-	return (pt[pte] & ~0xfff) | (virt & 0xfff);
+	return (pt[pte] & ~(PAGE_SIZE - 1)) | (virt & (PAGE_SIZE - 1));
 }
 
 void memory::handle_pg_fault(interrupt_state*, uint64_t)
