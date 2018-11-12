@@ -8,8 +8,10 @@
 .type uspace_jump_trampoline, @function
 uspace_jump_trampoline:
 #ifndef TASK_SWITCH_SAVE_CALLER_SAVED
-	mov %r12, %rdi
-	mov %r13, %rsi
+	mov %r12, %rdi // First argument to jump_uspace (rip)
+	mov %r13, %rsi // Second argument to jump_uspace (rsp)
+	mov %r14, %rdx // Optional Third argument
+	mov %r15, %rcx // Optional Fourth argument
 #endif
 	jmp    jump_uspace
 
@@ -27,6 +29,10 @@ jump_uspace:
 	pushq $202         // Push flags
 	pushq $USER_CS_PL3 // Push cs
 	pushq %rdi         // Push rip (in first argument)
+
+	// Setup optional arguments
+	mov %rdx, %rdi
+	mov %rcx, %rsi
 
 	iretq              // Jump to userspace!
 

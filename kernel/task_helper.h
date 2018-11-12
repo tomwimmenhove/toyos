@@ -36,7 +36,7 @@ struct __attribute__((packed)) switch_regs
 };
 
 
-extern "C" void uspace_jump_trampoline(uint64_t rdi, uint64_t rsi);
+extern "C" void uspace_jump_trampoline();
 extern "C" void jump_uspace(uint64_t rip, uint64_t rsp);
 extern "C" void init_tsk0(uint64_t rip, uint64_t ret, uint64_t rsp);
 extern "C" void state_switch(uint64_t& rsp, uint64_t& save_rsp);

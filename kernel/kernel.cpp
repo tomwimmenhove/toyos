@@ -149,9 +149,10 @@ task* task2;
 
 void schedule();
 
-extern "C" void k_test_user1(uint64_t arg0)
+extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 {
-	ucon << "arg0: " << hex_u64(arg0) << '\n';
+	ucon << "tsk 1: arg0: " << arg0 << '\n';
+	ucon << "tsk 1: arg1: " << arg1 << '\n';
 
 	for (;;)
 	{
@@ -163,8 +164,11 @@ extern "C" void k_test_user1(uint64_t arg0)
 	}
 }
 
-void k_test_user2()
+void k_test_user2(uint64_t arg0, uint64_t arg1)
 {
+	ucon << "tsk 2: arg0: " << arg0 << '\n';
+	ucon << "tsk 2: arg1: " << arg1 << '\n';
+
 	for (;;)
 	{
 		ucon << '2';
@@ -173,13 +177,6 @@ void k_test_user2()
 //		syscall(2);
 	}
 }
-
-void k_test2()
-{
-	jump_uspace((uint64_t) &k_test_user2, ustack2->top<uint64_t>());
-}
-
-
 
 void task_add(task* task)
 {
@@ -247,9 +244,13 @@ void k_test_init()
 #else
 	ustack1->state.r12 = (uint64_t) &k_test_user1;
 	ustack1->state.r13 = ustack1->top<uint64_t>();
+	ustack1->state.r14 = 42;	// Will be passed as arguments
+	ustack1->state.r15 = 43;
 
 	ustack2->state.r12 = (uint64_t) &k_test_user2;
 	ustack2->state.r13 = ustack2->top<uint64_t>();
+	ustack2->state.r14 = 44;
+	ustack2->state.r15 = 45;
 #endif
 	ustack1->push<uint64_t>(0xaaaaaaaabbbbbbbb);
 
