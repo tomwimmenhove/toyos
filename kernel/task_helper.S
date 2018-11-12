@@ -26,7 +26,7 @@ jump_uspace:
 
 	pushq %rax         // Push ss
 	pushq %rsi         // Push rsp (in second argument)
-	pushq $202         // Push flags
+	pushq $0x202         // Push flags
 	pushq $USER_CS_PL3 // Push cs
 	pushq %rdi         // Push rip (in first argument)
 

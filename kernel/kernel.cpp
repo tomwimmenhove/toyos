@@ -74,27 +74,26 @@ struct __attribute__((packed)) user_stack
 			return *(T*) p;
 		};
 
-	private:
+private:
 	uint64_t lsp;
 	uint8_t space[S - sizeof(switch_regs) - sizeof(uint64_t)];
 
-	public:
+public:
 	switch_regs state;
 };
-
-user_stack<PAGE_SIZE>* ustack1;
-user_stack<PAGE_SIZE>* ustack2;
 
 struct task
 {
 	task(int id, uint64_t rsp, uint64_t tss_rsp)
-		: id(id), rsp(rsp), tss_rsp(tss_rsp), running(false)
+		: id(id), rsp(rsp), tss_rsp(tss_rsp), wait_on(nullptr), running(false)
 	{ }
 
 	int id;
 
 	uint64_t rsp;		/* Saved stack pointer */
 	uint64_t tss_rsp;	/* Kernel stack top */
+
+	bool (*wait_on)();
 
 	bool running;
 
@@ -110,6 +109,9 @@ task* task2;
 
 void schedule();
 
+uint64_t jiffies = 0;
+
+uint64_t now;
 extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 {
 	ucon << "tsk 1: arg0: " << arg0 << '\n';
@@ -118,13 +120,11 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	for (;;)
 	{
 		ucon << '1';
-		task1->running = false;
-		syscall(5);
-	
-//		syscall(2);
+		syscall(7);
 	}
 }
 
+uint8_t last_code = 0;
 void k_test_user2(uint64_t arg0, uint64_t arg1)
 {
 	ucon << "tsk 2: arg0: " << arg0 << '\n';
@@ -132,10 +132,8 @@ void k_test_user2(uint64_t arg0, uint64_t arg1)
 
 	for (;;)
 	{
+		syscall(8);
 		ucon << '2';
-		task2->running = false;
-		syscall(5);
-//		syscall(2);
 	}
 }
 
@@ -159,7 +157,18 @@ void schedule()
 
 		/* Running task? */
 		if (current->running)
-			break;
+		{
+			/* Is it waiting on something? */
+			if (current->wait_on != nullptr)
+			{
+				if (current->wait_on())
+					break;
+			}
+			else
+			{
+				break;
+			}
+		}
 
 		/* Nothing to do? */
 		if (current == last)
@@ -173,13 +182,28 @@ void schedule()
 	state_switch(current->rsp, last->rsp);
 }
 
+/* Sets up a temporary new stack for incoming interrupts to use */
+void save_kernel_halt()
+{
+	static uint8_t stack[KSTACK_SIZE];
+
+	asm volatile("mov %%rsp, %%rax\n"
+			"mov %0, %%rsp\n"
+			"sti\n"
+			"hlt\n"
+			"cli\n"
+			"mov %%rax, %%rsp\n"
+			: : "r" (stack + KSTACK_SIZE)
+			: "memory", "%rax");
+}
+
 void tsk_idle()
 {
 	for (;;)
 	{
+		save_kernel_halt();
 //		ucon << 'X';
-		asm("hlt");
-//		schedule();
+		schedule();
 	}
 }
 
@@ -193,8 +217,8 @@ void k_test_init()
 
 	/* Here we set up our stack for the task. One initial page. The rip entry is set
 	 * to the entry point of the function that will, in turn, call user space */
-	ustack1 = new user_stack<PAGE_SIZE>((void*) &uspace_jump_trampoline, &dead_task);
-	ustack2 = new user_stack<PAGE_SIZE>((void*) &uspace_jump_trampoline, &dead_task);
+	auto ustack1 = new user_stack<PAGE_SIZE>((void*) &uspace_jump_trampoline, &dead_task);
+	auto ustack2 = new user_stack<PAGE_SIZE>((void*) &uspace_jump_trampoline, &dead_task);
 
 #ifdef TASK_SWITCH_SAVE_CALLER_SAVED
 	ustack1->state.rdi = (uint64_t) &k_test_user1;
@@ -221,8 +245,8 @@ void k_test_init()
 	 * this task, it will neatly pop those registers, and 'return' to the function
 	 * pointed to by state->rip. After which that function performs the actual jump
 	 * to userspace. */
-	task1 = new task(1, (uint64_t) &ustack1->state, (uint64_t) new uint8_t[PAGE_SIZE] + PAGE_SIZE);
-	task2 = new task(2, (uint64_t) &ustack2->state, (uint64_t) new uint8_t[PAGE_SIZE] + PAGE_SIZE);
+	task1 = new task(1, (uint64_t) &ustack1->state, (uint64_t) new uint8_t[KSTACK_SIZE] + KSTACK_SIZE);
+	task2 = new task(2, (uint64_t) &ustack2->state, (uint64_t) new uint8_t[KSTACK_SIZE] + KSTACK_SIZE);
 
 
 	task_add(task1);
@@ -264,15 +288,30 @@ void intr_syscall(uint64_t, interrupt_state* state)
 		case 5:
 			schedule();
 			break;
+
+		case 6:
+			current->running = false;
+			schedule();
+			break;
+
+		case 7:
+			now = jiffies;
+			task1->wait_on = []() { return ((jiffies - now) > 18); };
+			schedule();
+			break;
+
+		case 8:
+			/* wait for key */
+			current->wait_on = []() { return (last_code != 0); };
+			schedule();
+			last_code = 0;
+			break;
 	}
 }
 
 void interrupt_timer(uint64_t, interrupt_state*)
 {
-//	uint64_t test_rsp = 0;
-
-//	con << ".";
-//	state_switch(rsp2, &rsp1);
+	jiffies++;
 	schedule();
 }
 
@@ -284,12 +323,14 @@ void interrupt_kb(uint64_t, interrupt_state*)
 	if (ch > 127)
 		return;
 
+	last_code = ch;
+
 	if (ch == 2)
 		task1->running = true;
 	if (ch == 3)
 		task2->running = true;
 
-	schedule();
+//	schedule();
 }
 
 void kmain()
@@ -302,16 +343,8 @@ void kmain()
 	interrupts::regist(pic_sys.to_intr(1), interrupt_kb);
 	interrupts::regist(42, intr_syscall);
 
-
 //	test();
 
-	/* Load TSS0 */
-	ltr(TSS0);
-
-	uint64_t ps = (uint64_t) mallocator::malloc(PAGE_SIZE);
-	uint64_t ps_top = ps + PAGE_SIZE;
-
-	tss0.rsp0 = ps_top;
 //	pic_sys.sti();
 	k_test_init();
 }
@@ -349,8 +382,11 @@ void _start(kernel_boot_info* kbi)
 	/* Unmap unused memmory */
 	memory::unmap_unused();
 
-
 	mallocator::init(0xffffa00000000000, 1024 * 1024 * 1024);
+
+	/* Load TSS0 */
+	ltr(TSS0);
+
 
 	kmain();
 	_fini();

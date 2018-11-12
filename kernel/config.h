@@ -25,5 +25,7 @@ extern "C"
 
 #define PAGE_SIZE	0x1000
 
+#define KSTACK_SIZE	(PAGE_SIZE)
+
 #endif /* _CONFIG_H */
 

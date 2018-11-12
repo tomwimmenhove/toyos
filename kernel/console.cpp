@@ -1,4 +1,5 @@
 #include "console.h"
+#include "debug.h"
 #include "io.h"
 #include "syscall.h"
 #include "mb.h"
@@ -162,6 +163,8 @@ void console_x86::init(kernel_boot_info* kbi)
 
 void console_x86::putc(char ch)
 {
+	qemu_out_char(ch);
+
 	/* new line? */
 	if (ch == '\n')
 		pos = (pos + w) - (pos % w);

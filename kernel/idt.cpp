@@ -11,8 +11,13 @@ void idt_init()
 {
 	/* Fill all entries */
 	for (int i = 0; i < 256; i++)
+	{
 		// XXX: Hard-coded syscall entry. Ugly fucker!
-		idt[i] = idt_entry(((uint64_t) &intr_0) + i * 0x10, 0x18, 0, 0x8e + (i == 42 ? (3 << 5) : 0));
+		if (i == 42)
+			idt[i] = idt_entry(((uint64_t) &intr_0) + i * 0x10, 0x18, 0, 0x8e + (3 << 5));
+		else
+			idt[i] = idt_entry(((uint64_t) &intr_0) + i * 0x10, 0x18, 0, 0x8e + 0);
+	}
 
 	/* Load the IDT register */
 	idt_ptr.lidt();
