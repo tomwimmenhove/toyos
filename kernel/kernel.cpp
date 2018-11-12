@@ -37,48 +37,9 @@ void print_stack_use()
 	con << "stack usuage: " << (KERNEL_STACK_TOP - (uint64_t) __builtin_frame_address(0)) << "\n";
 }
 
-void __attribute__ ((noinline)) test()
-{
-		asm("int $42");
-}
-
-void user_space()
-{
-	for (int i = 0;; i ++)
-	{
-//		for (volatile int j = 0; j < 10000000; j++) ;
-		ucon << '1';
-//		ucon << "Hello world from userspace process 1: i=" << i << '\n';
-//		for (int i = 0 ; i < 9; i++)
-			syscall(2);
-//		syscall(3);
-	}
-}
-
-void user_space2()
-{
-	for (int i = 0;; i ++)
-	{
-//		for (volatile int j = 0; j < 10000000; j++) ;
-		ucon << '2';
-//		ucon << "Hello world from userspace process 2: i=" << i << '\n';
-//		for (int i = 0 ; i < 9; i++)
-			syscall(2);
-//		syscall(4);
-	}
-}
-
 void dead_task()
 {
 	panic("Can't handle returning tasks yet");
-}
-
-void uspace_test()
-{
-	for (;;)
-	{
-		ucon << '1';
-	}
 }
 
 template<size_t S>
@@ -345,9 +306,7 @@ void kmain()
 //	test();
 
 	/* Load TSS0 */
-	asm volatile("mov $0x20, %%ax\n"
-	"ltr %%ax"
-	::: "%ax");
+	ltr(TSS0);
 
 	uint64_t ps = (uint64_t) mallocator::malloc(PAGE_SIZE);
 	uint64_t ps_top = ps + PAGE_SIZE;

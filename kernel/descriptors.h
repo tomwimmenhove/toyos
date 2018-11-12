@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "tss.h"
+#include "config.h"
 
 /* IDT entry */
 struct __attribute__((packed)) idt_entry
@@ -105,6 +106,11 @@ struct __attribute__((packed)) desc_tss : public gdt128_entry
 	{ }
 };
 
+inline void ltr(uint16_t offs)
+{
+	 asm volatile("ltr %0"
+			 : : "r" (offs));
+}
 
 
 /* General descriptor pointer */
