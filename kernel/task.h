@@ -59,49 +59,25 @@ private:
 
 /* ------------------------------------------------------------------------- */
 
-template<size_t S>
-struct __attribute__((packed)) user_stack
+struct task_stack
 {
-	user_stack(void *rip, void(*ret)())
-		: state {
-#ifdef TASK_SWITCH_SAVE_CALLER_SAVED
-			0, 0, 0, 0, 0, 0, 0, 0, 0,
-#endif
-				0, 0, 0, 0, 0, 0, (uint64_t) rip, (uint64_t) ret }
-	{   
-		memset(space, 0, sizeof(space));
-	}
-
-	template<typename T>
-	inline T top() { return (T) (((uint64_t) this) + S); }
-
-private:
-	uint8_t space[S - sizeof(switch_regs) - sizeof(uint64_t)];
-
-public:
-	switch_regs state;
-};
-
-struct u_user_stack
-{
-	u_user_stack(size_t size, uint64_t rip,  uint64_t ret)
+	task_stack(size_t size, uint64_t rip,  uint64_t ret)
 		: size(size), space(std::make_unique<uint8_t[]>(size))
 	{
 		memset(space.get(), 0, sizeof(space));
 
 		/* Place the registers at the top of the stack */
-		void* p = &space[size - sizeof(switch_regs)];
-		state = (switch_regs*) p;
+		init_regs = new(&space[size - sizeof(switch_regs)]) switch_regs();
 
 		/* Set values */
-		state->rip = rip;
-		state->ret_ptr = ret;
+		init_regs->rip = rip;
+		init_regs->ret_ptr = ret;
 	}
 
 	template<typename T>
 	inline T top() { return (T) (((uint64_t) space.get()) + size); }
 
-	switch_regs* state;
+	switch_regs* init_regs;
 
 private:
 	size_t size;
@@ -113,24 +89,16 @@ private:
 struct task
 {
 	task(int id, uint64_t rsp, uint64_t tss_rsp)
-		: id(id), rsp(rsp), tss_rsp(tss_rsp), running(false)
+		: id(id), rsp(rsp), tss_rsp(tss_rsp)
 	{ }
 
-	/* kernel task */
-	task(int id, std::unique_ptr<u_user_stack> u_stack, std::unique_ptr<uint8_t[]> k_stack, size_t k_stack_size)
+	task(int id, std::unique_ptr<task_stack> tsk_stack, std::unique_ptr<uint8_t[]> k_stack, size_t k_stack_size)
 		: id(id),
-		  rsp((uint64_t) u_stack->state),
-		  u_stack(std::move(u_stack)),
-		  tss_rsp((uint64_t) k_stack.get() + k_stack_size),
-		  k_stack(std::move(k_stack)),
-		  running(false)
+		  rsp((uint64_t) tsk_stack->init_regs), /* rsp at bottom of init_regs, ready to pop. */
+		  tss_rsp((uint64_t) k_stack.get() + k_stack_size), /* tss_rsp at top of kernel stack. */
+		  tsk_stack(std::move(tsk_stack)),
+		  k_stack(std::move(k_stack))
 	{ }
-
-	int id;
-
-	uint64_t rsp;       /* Saved stack pointer */
-
-	wait_fn<> wait_for;
 
 	inline bool can_run()
 	{
@@ -143,14 +111,19 @@ struct task
 		return false;
 	}
 
-	std::unique_ptr<u_user_stack> u_stack;
+	int id;
+	bool running = false;
+	
+	wait_fn<> wait_for;
+	
+	std::shared_ptr<task> next;
 
+	uint64_t rsp;       /* Task's current stack pointer */
 	uint64_t tss_rsp;   /* Kernel stack top */
 
+private:
+	std::unique_ptr<task_stack> tsk_stack;
 	std::unique_ptr<uint8_t[]> k_stack;
-	bool running;
-
-	std::shared_ptr<task> next;
 };
 
 #endif /* TASK_H */

@@ -143,33 +143,28 @@ void k_test_init()
 
 	/* Here we set up our stack for the task. One initial page. The rip entry is set
 	 * to the entry point of the function that will, in turn, call user space */
-//	auto ustack1 = new user_stack<PAGE_SIZE>((void*) &uspace_jump_trampoline, &dead_task);
-//	auto ustack2 = new user_stack<PAGE_SIZE>((void*) &uspace_jump_trampoline, &dead_task);
-
-	auto ustack1 = std::make_unique<u_user_stack>(PAGE_SIZE, (uint64_t) &uspace_jump_trampoline, (uint64_t) &dead_task);
-	auto ustack2 = std::make_unique<u_user_stack>(PAGE_SIZE, (uint64_t) &uspace_jump_trampoline, (uint64_t) &dead_task);
+	auto ustack1 = std::make_unique<task_stack>(PAGE_SIZE, (uint64_t) &uspace_jump_trampoline, (uint64_t) &dead_task);
+	auto ustack2 = std::make_unique<task_stack>(PAGE_SIZE, (uint64_t) &uspace_jump_trampoline, (uint64_t) &dead_task);
 
 #ifdef TASK_SWITCH_SAVE_CALLER_SAVED
-	ustack1->state.rdi = (uint64_t) &k_test_user1;
-	ustack1->state.rsi = ustack1->top<uint64_t>();
+	ustack1->init_regs.rdi = (uint64_t) &k_test_user1;
+	ustack1->init_regs.rsi = ustack1->top<uint64_t>();
 
-	ustack2->state.rdi = (uint64_t) &k_test_user2;
-	ustack2->state.rsi = ustack2->top<uint64_t>();
+	ustack2->init_regs.rdi = (uint64_t) &k_test_user2;
+	ustack2->init_regs.rsi = ustack2->top<uint64_t>();
 #else
-	ustack1->state->r12 = (uint64_t) &k_test_user1;
-	ustack1->state->r13 = ustack1->top<uint64_t>();
-	ustack1->state->r14 = 42;	// Will be passed as arguments
-	ustack1->state->r15 = 43;
+	ustack1->init_regs->r12 = (uint64_t) &k_test_user1;
+	ustack1->init_regs->r13 = ustack1->top<uint64_t>();
+	ustack1->init_regs->r14 = 42;	// Will be passed as arguments
+	ustack1->init_regs->r15 = 43;
 
-	ustack2->state->r12 = (uint64_t) &k_test_user2;
-	ustack2->state->r13 = ustack2->top<uint64_t>();
-	ustack2->state->r14 = 44;
-	ustack2->state->r15 = 45;
+	ustack2->init_regs->r12 = (uint64_t) &k_test_user2;
+	ustack2->init_regs->r13 = ustack2->top<uint64_t>();
+	ustack2->init_regs->r14 = 44;
+	ustack2->init_regs->r15 = 45;
 #endif
 
 	con << "Creating tasks\n";
-
-	auto testData = std::make_unique<uint8_t[]>(16000);
 
 
 	/* Set up the task. Use the registers state (rip and return pointer, as set above) as
