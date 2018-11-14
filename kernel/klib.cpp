@@ -29,4 +29,10 @@ extern "C" void __cxa_pure_virtual()
 	panic("Virtual method called");
 }
 
+extern "C" int __cxa_atexit(void (*f)(void*), void *objptr, void *dso);
 
+extern "C" int __cxa_atexit(void (*)(void*), void*, void*)
+{
+	/* Pffrt. There is no exit. */
+	return 0;
+}

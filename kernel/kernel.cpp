@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <memory>
 
 #include "config.h"
 #include "linker.h"
@@ -32,16 +33,14 @@ void dead_task()
 uint64_t jiffies = 0;
 
 
-task* tasks = nullptr;
-task* current = nullptr;
+std::shared_ptr<task> tasks;
+std::shared_ptr<task> current;
 
-task* task_idle;
-task* task1;
-task* task2;
+std::shared_ptr<task> task_idle;
+std::shared_ptr<task> task1;
+std::shared_ptr<task> task2;
 
 void schedule();
-
-
 
 extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 {
@@ -69,7 +68,7 @@ void k_test_user2(uint64_t arg0, uint64_t arg1)
 	}
 }
 
-void task_add(task* task)
+void task_add(std::shared_ptr<task> task)
 {
 	auto head = tasks;
 
@@ -138,13 +137,16 @@ void k_test_init()
 	/* Use the top of our current stack. It's safe to smash it, since we won't return.
 	 * We'll use 0 for the tss_rsp, because the idle task is never in user space and
 	 * will never cause a privilege change. */
-	task_idle = new task(0, KERNEL_STACK_TOP, 0);
+	task_idle = std::make_shared<task>(0, KERNEL_STACK_TOP, 0);
+
 	task_add(task_idle);
 
 	/* Here we set up our stack for the task. One initial page. The rip entry is set
 	 * to the entry point of the function that will, in turn, call user space */
 	auto ustack1 = new user_stack<PAGE_SIZE>((void*) &uspace_jump_trampoline, &dead_task);
 	auto ustack2 = new user_stack<PAGE_SIZE>((void*) &uspace_jump_trampoline, &dead_task);
+
+//	auto ustack1 = new u_user_stack(PAGE_SIZE, (uint64_t) &uspace_jump_trampoline, (uint64_t) &dead_task);
 
 #ifdef TASK_SWITCH_SAVE_CALLER_SAVED
 	ustack1->state.rdi = (uint64_t) &k_test_user1;
@@ -166,13 +168,16 @@ void k_test_init()
 
 	con << "Creating tasks\n";
 
+	auto testData = std::make_unique<uint8_t[]>(16000);
+
+
 	/* Set up the task. Use the registers state (rip and return pointer, as set above) as
 	 * stack pointer. This way, when the scheduler comes along and performs the switch to
 	 * this task, it will neatly pop those registers, and 'return' to the function
 	 * pointed to by state->rip. After which that function performs the actual jump
 	 * to userspace. */
-	task1 = new task(1, (uint64_t) &ustack1->state, (uint64_t) new uint8_t[KSTACK_SIZE] + KSTACK_SIZE);
-	task2 = new task(2, (uint64_t) &ustack2->state, (uint64_t) new uint8_t[KSTACK_SIZE] + KSTACK_SIZE);
+	task1 = std::make_shared<task>(1, (uint64_t) &ustack1->state, std::make_unique<uint8_t[]>(KSTACK_SIZE), KSTACK_SIZE);
+	task2 = std::make_shared<task>(2, (uint64_t) &ustack2->state, std::make_unique<uint8_t[]>(KSTACK_SIZE), KSTACK_SIZE);
 
 	con << "Created tasks\n";
 

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <memory>
 
 #include "klib.h"
 #include "task_helper.h"
@@ -81,12 +82,43 @@ public:
 	switch_regs state;
 };
 
+struct u_user_stack
+{
+	u_user_stack(size_t size, uint64_t rip,  uint64_t ret)
+		: size(size), space(std::make_unique<uint8_t[]>(size))
+	{
+		memset(space.get(), 0, sizeof(space));
+
+		/* Place the registers at the top of the stack */
+		void* p = &space[size - sizeof(switch_regs)];
+		state = (switch_regs*) p;
+
+		/* Set values */
+		state->rip = rip;
+		state->ret_ptr = ret;
+	}
+
+	template<typename T>
+	inline T top() { return (T) (((uint64_t) space.get()) + size); }
+
+	switch_regs* state;
+
+private:
+	size_t size;
+	std::unique_ptr<uint8_t[]> space;
+};
+
 /* ------------------------------------------------------------------------- */
 
 struct task
 {
 	task(int id, uint64_t rsp, uint64_t tss_rsp)
 		: id(id), rsp(rsp), tss_rsp(tss_rsp), running(false)
+	{ }
+
+	/* kernel task */
+	task(int id, uint64_t rsp, std::unique_ptr<uint8_t[]> k_stack, size_t k_stack_size)
+		: id(id), rsp(rsp), tss_rsp((uint64_t) k_stack.get() + k_stack_size), k_stack(std::move(k_stack)), running(false)
 	{ }
 
 	int id;
@@ -107,9 +139,10 @@ struct task
 		return false;
 	}
 
+	std::unique_ptr<uint8_t[]> k_stack;
 	bool running;
 
-	task* next;
+	std::shared_ptr<task> next;
 };
 
 #endif /* TASK_H */
