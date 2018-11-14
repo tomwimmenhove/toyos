@@ -117,14 +117,18 @@ struct task
 	{ }
 
 	/* kernel task */
-	task(int id, uint64_t rsp, std::unique_ptr<uint8_t[]> k_stack, size_t k_stack_size)
-		: id(id), rsp(rsp), tss_rsp((uint64_t) k_stack.get() + k_stack_size), k_stack(std::move(k_stack)), running(false)
+	task(int id, std::unique_ptr<u_user_stack> u_stack, std::unique_ptr<uint8_t[]> k_stack, size_t k_stack_size)
+		: id(id),
+		  rsp((uint64_t) u_stack->state),
+		  u_stack(std::move(u_stack)),
+		  tss_rsp((uint64_t) k_stack.get() + k_stack_size),
+		  k_stack(std::move(k_stack)),
+		  running(false)
 	{ }
 
 	int id;
 
 	uint64_t rsp;       /* Saved stack pointer */
-	uint64_t tss_rsp;   /* Kernel stack top */
 
 	wait_fn<> wait_for;
 
@@ -138,6 +142,10 @@ struct task
 		}
 		return false;
 	}
+
+	std::unique_ptr<u_user_stack> u_stack;
+
+	uint64_t tss_rsp;   /* Kernel stack top */
 
 	std::unique_ptr<uint8_t[]> k_stack;
 	bool running;
