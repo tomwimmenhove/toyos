@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <memory>
+#include <embxx/container/StaticQueue.h>
 
 #include "config.h"
 #include "linker.h"
@@ -32,15 +33,12 @@ void dead_task()
 
 uint64_t jiffies = 0;
 
-
 std::shared_ptr<task> tasks;
 std::shared_ptr<task> current;
 
 std::shared_ptr<task> task_idle;
-std::shared_ptr<task> task1;
-std::shared_ptr<task> task2;
 
-void schedule();
+embxx::container::StaticQueue<uint8_t, 4096> key_queue;
 
 extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 {
@@ -54,8 +52,6 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	}
 }
 
-static uint8_t last_code = 0;
-
 void k_test_user2(uint64_t arg0, uint64_t arg1)
 {
 	ucon << "tsk 2: arg0: " << arg0 << '\n';
@@ -64,7 +60,12 @@ void k_test_user2(uint64_t arg0, uint64_t arg1)
 	for (;;)
 	{
 		syscall(8);
-		ucon << '(' << last_code << ')';
+
+		while (key_queue.size())
+		{
+			ucon << '(' << key_queue.back() << ')';
+			key_queue.pop_back();
+		}
 	}
 }
 
@@ -164,23 +165,17 @@ void k_test_init()
 	ustack2->init_regs->r15 = 45;
 #endif
 
-	con << "Creating tasks\n";
-
-
 	/* Set up the task. Use the registers state (rip and return pointer, as set above) as
 	 * stack pointer. This way, when the scheduler comes along and performs the switch to
 	 * this task, it will neatly pop those registers, and 'return' to the function
 	 * pointed to by state->rip. After which that function performs the actual jump
 	 * to userspace. */
-	task1 = std::make_shared<task>(1, std::move(ustack1), std::make_unique<uint8_t[]>(KSTACK_SIZE), KSTACK_SIZE);
-	task2 = std::make_shared<task>(2, std::move(ustack2), std::make_unique<uint8_t[]>(KSTACK_SIZE), KSTACK_SIZE);
-
-	con << "Created tasks\n";
+	auto task1 = std::make_shared<task>(1, std::move(ustack1), std::make_unique<uint8_t[]>(KSTACK_SIZE), KSTACK_SIZE);
+	auto task2 = std::make_shared<task>(2, std::move(ustack2), std::make_unique<uint8_t[]>(KSTACK_SIZE), KSTACK_SIZE);
 
 	task_add(task1);
 	task_add(task2);
 
-//	task_idle->running = true;
 	task1->running = true;
 	task2->running = true;
 
@@ -199,19 +194,6 @@ void k_test_init()
 	panic("Idle task returned!?");
 }
 
-#if 0
-static bool wait_jiffies()
-{
-	return (jiffies - now) >= 18;
-//	return (jiffies - now) > 0;
-}
-
-static bool wait_key()
-{
-	return last_code != 0;
-}
-#endif
-
 void intr_syscall(uint64_t, interrupt_state* state)
 {
 	auto now = jiffies;
@@ -220,8 +202,13 @@ void intr_syscall(uint64_t, interrupt_state* state)
 	switch(state->rdi)
 	{
 		case 0:
-			con.write_string((const char*) state->rsi);
-			break;
+			{
+				const unsigned char* s = (const unsigned char*) state->rsi;
+				auto len = state->rdx;
+				for (size_t i = 0; i < len; i++)
+					con.putc(*s++);
+				break;
+			}
 		case 1:
 			con.putc(state->rsi);
 			break;
@@ -247,8 +234,7 @@ void intr_syscall(uint64_t, interrupt_state* state)
 			break;
 
 		case 8:
-			last_code = 0;
-			current->wait_for = []() { return last_code != 0; };
+			current->wait_for = []() { return key_queue.size() != 0; };
 			schedule();
 			current->wait_for = nullptr;
 			break;
@@ -268,20 +254,10 @@ void interrupt_kb(uint64_t, interrupt_state*)
 	uint8_t ch = inb_p(0x60);
 //	con << "key: " << (long long int) ch << "\n";
 
-	if (ch > 127)
-		return;
-
-	last_code = ch;
-
-	if (ch == 2)
-		task1->running = true;
-	if (ch == 3)
-		task2->running = true;
-
-//	schedule();
+	key_queue.push_back(ch);
 }
 
-#include <embxx/util/StaticFunction.h>
+#include "klib.h"
 
 void kmain()
 {
@@ -292,8 +268,6 @@ void kmain()
 	interrupts::regist(pic_sys.to_intr(0), interrupt_timer);
 	interrupts::regist(pic_sys.to_intr(1), interrupt_kb);
 	interrupts::regist(42, intr_syscall);
-
-//	test();
 
 //	pic_sys.sti();
 	k_test_init();

@@ -3,6 +3,7 @@
 #include "io.h"
 #include "syscall.h"
 #include "mb.h"
+#include "klib.h"
 
 /* Generic console stuff */
 
@@ -208,6 +209,6 @@ void console_user::putc(char ch)
 
 void console_user::write_string(const char* s)
 {
-	syscall(0, (uint64_t) s);
+	syscall(0, (uint64_t) s, strlen(s));
 }
 
