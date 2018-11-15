@@ -1,0 +1,4 @@
+[submodule "embxx"]
+	path = embxx
+	url = https://github.com/arobenko/embxx.git
+	branch = master
