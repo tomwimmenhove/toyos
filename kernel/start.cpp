@@ -25,25 +25,22 @@ void kmain();
 
 void cpu_init()
 {
-	if (!has_cpuid())
-		silent_death();
-	uint64_t a, b, c, d;
-	cpuid(1, 0, a, b, c, d);
+	cpuid c(1);
 
-	if (!(d & 1))			// CPU has no FPU
+	if (!(c.rdx & 1))			// CPU has no FPU
 		silent_death();
-	if (!(d & (1 << 23)))	// CPU has no MMX extensions
+	if (!(c.rdx & (1 << 23)))	// CPU has no MMX extensions
 		silent_death();
-	if (!(d & (1 << 25)))	// CPU has no SSE extensions
+	if (!(c.rdx & (1 << 25)))	// CPU has no SSE extensions
 		silent_death();
-	if (!(d & (1 << 26)))	// CPU has no SSE2 extensions
+	if (!(c.rdx & (1 << 26)))	// CPU has no SSE2 extensions
 		silent_death();
-	if (!(d & (1 << 24)))	// CPU does not support FXSAVE and FXRSTOR Instructions
+	if (!(c.rdx & (1 << 24)))	// CPU does not support FXSAVE and FXRSTOR Instructions
 		silent_death();
 
-//	if (!(c & (1 << 26)))	// CPU does not support XSAVE, XRESTOR, XSETBV, XGETBV
+//	if (!(c.rcx & (1 << 26)))	// CPU does not support XSAVE, XRESTOR, XSETBV, XGETBV
 //		silent_death();
-//	if (!(c & (1 << 27)))	// CPU does not support OSXSAVE
+//	if (!(c.rcx & (1 << 27)))	// CPU does not support OSXSAVE
 //		silent_death();
 
 	uint64_t cr0 = cr0_get();
@@ -89,17 +86,6 @@ void _start(kernel_boot_info* kbi)
 	con.base = (uint8_t*) video_base;
 
 	con << "Video ram remapped\n";
-
-
-	{
-		uint64_t a, b, c, d;
-		cpuid(1, 0, a, b, c, d);
-
-		con << "a: 0x" << hex_u64(a) << '\n';
-		con << "b: 0x" << hex_u64(b) << '\n';
-		con << "c: 0x" << hex_u64(c) << '\n';
-		con << "d: 0x" << hex_u64(d) << '\n';
-	}
 
 	/* Unmap unused memmory */
 	memory::unmap_unused();

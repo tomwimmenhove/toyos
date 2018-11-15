@@ -285,12 +285,6 @@ void interrupt_kb(uint64_t, interrupt_state*)
 
 void kmain()
 {
-	volatile float fa = 1, fb = 2, fc;
-	fc = fa / fb; (void) fc;
-	con << "FPU test passed\n";
-
-	GASSERT(false);
-
 //	die();
 
 	mallocator::test();
