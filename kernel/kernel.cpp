@@ -285,8 +285,6 @@ void interrupt_kb(uint64_t, interrupt_state*)
 
 void kmain()
 {
-//	die();
-
 	mallocator::test();
 
 //	pic_sys.disable(pic_sys.to_intr(0));

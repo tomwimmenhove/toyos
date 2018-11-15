@@ -1,3 +1,5 @@
+#include <assert.h>
+
 #include "malloc.h"
 #include "config.h"
 
@@ -48,6 +50,7 @@ void* mallocator::malloc(size_t size)
 			}
 
 			chunk->used = 1;
+			chunk->magic = mallocator_chunk::MAGIC;
 			return chunk->data;
 		}
 		chunk = chunk->next;
@@ -67,6 +70,7 @@ void mallocator::free(void* p)
 	{
 		if (p == chunk->data)
 		{
+			assert(chunk->magic == mallocator_chunk::MAGIC);
 			if (!chunk->prev->used)
 			{
 				/* Combine with the previous chunk */
@@ -76,6 +80,7 @@ void mallocator::free(void* p)
 			}
 
 			chunk->used = 0;
+			chunk->magic = ~mallocator_chunk::MAGIC;
 
 			if (!chunk->next->used)
 			{

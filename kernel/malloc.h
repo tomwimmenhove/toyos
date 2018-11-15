@@ -10,11 +10,14 @@
 
 struct __attribute__ ((packed)) mallocator_chunk
 {
+	static constexpr uint64_t MAGIC = 0xdeadcafebabeface;
+
 	mallocator_chunk* prev;
 	mallocator_chunk* next;
 
 	size_t len;
 	bool used;
+	uint64_t magic;
 	uint8_t __pad[0x8 - sizeof(bool)];
 	uint8_t data[0];
 };
