@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "memory.h"
+#include "mem.h"
 #include "frame_alloc.h"
 #include "debug.h"
 

@@ -4,58 +4,10 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <memory>
+#include <embxx/util/StaticFunction.h>
 
 #include "klib.h"
 #include "task_helper.h"
-
-struct wait_fn_call_base
-{
-	virtual bool operator()() = 0;
-	virtual ~wait_fn_call_base() {}
-};
-
-template <typename F>
-struct wait_fn_call : wait_fn_call_base
-{
-	wait_fn_call(F functor) : functor(functor) {}
-	virtual bool operator()() { return functor(); }
-private:
-	F functor;
-};
-
-template<int S>
-struct wait_fn_stor
-{
-private:
-	uint8_t buf[S];
-};
-
-template<int S = (sizeof(void*) * 3)>
-class wait_fn
-{
-public:
-	inline wait_fn()
-		: stor_ptr(nullptr)
-	{ }
-
-	template <typename F>
-	inline wait_fn(F f) { reset(f); }
-
-	template <typename F>
-	inline void reset(F f)
-	{   
-		static_assert(sizeof(stor) >= sizeof(wait_fn_call<F>));
-		stor_ptr = new(&stor) wait_fn_call<F>(f);
-	}
-
-	inline void reset(void* p = nullptr) { stor_ptr = p; }
-	inline bool operator()() { return (*reinterpret_cast<wait_fn_call_base*>(stor_ptr))(); }
-	inline operator void*() { return stor_ptr; }
-
-private:
-	void* stor_ptr;
-	wait_fn_stor<S> stor;
-};
 
 /* ------------------------------------------------------------------------- */
 
@@ -114,7 +66,7 @@ struct task
 	int id;
 	bool running = false;
 	
-	wait_fn<> wait_for;
+	embxx::util::StaticFunction<bool()> wait_for;
 	
 	std::shared_ptr<task> next;
 

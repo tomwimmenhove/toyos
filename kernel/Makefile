@@ -3,8 +3,12 @@ $(shell mkdir -p $(DEPDIR) >/dev/null)
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 POSTCOMPILE = @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
-CFLAGS = -O2 -I ../common -I ../newlib/c++/4.9.3/ -I ../newlib/ -Wall -Wextra -Werror -nostdlib -ffreestanding -lgcc -mcmodel=kernel -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -ggdb $(DEPFLAGS)
-CPPFLAGS = -O2 -I ../common -I ../newlib/c++/4.9.3/ -I ../newlib/ -Wall -Wextra -Werror -nostdlib -ffreestanding -lgcc -fno-exceptions -fno-rtti -std=c++17 -mcmodel=kernel -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -ggdb $(DEPFLAGS)
+HACKFLAGS = -fno-threadsafe-statics # Until we implement the save guards
+DEBUGFLAGS = -ggdb -DDEBUG
+PRIMALFLAGS = -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -msoft-float
+INCLUDEDIRS = -I ../common -I ../newlib/c++/4.9.3/ -I ../newlib/ -I ../embxx/
+CFLAGS = $(HACKFLAGS) $(DEBUGFLAGS) -O2 $(INCLUDEDIRS) -Wall -Wextra -Werror -nostdlib -ffreestanding -lgcc -mcmodel=kernel -mno-red-zone $(DEPFLAGS)
+CPPFLAGS = $(HACKFLAGS) $(DEBUGFLAGS) -O2 $(INCLUDEDIRS) -Wall -Wextra -Werror -nostdlib -ffreestanding -lgcc -mcmodel=kernel -mno-red-zone $(DEPFLAGS) -fno-exceptions -fno-rtti -std=c++17
 LDFLAGS = crti.o $(shell $(CC) $(CFLAGS) -print-file-name=crtbegin.o) \
 	  $(shell $(CC) $(CFLAGS) -print-file-name=crtend.o) crtn.o \
 	  -T linker.ld -z max-page-size=4096
@@ -17,8 +21,12 @@ LD = x86_64-elf-ld
 all: kernel.elf
 
 IOBJS = crti.o crtn.o
-OBJS = debug.o   kernel.o memory.o   malloc.o   frame_alloc.o gdt.o   idt.o   interrupts.o   pic.o   console.o   syscall.o interrupt_jump.o new.o   task_helper.o klib.o
-SRCS = debug.cpp kernel.o memory.cpp malloc.cpp frame_alloc.o gdt.cpp idt.cpp interrupts.cpp pic.cpp console.cpp syscall.S interrupt_jump.S new.cpp task_helper.S klib.cpp
+OBJS = debug.o   kernel.o memory.o   malloc.o   frame_alloc.o gdt.o   idt.o   interrupts.o   pic.o   console.o   syscall.o interrupt_jump.o new.o   task_helper.o klib.o   start.o
+SRCS = debug.cpp kernel.o memory.cpp malloc.cpp frame_alloc.o gdt.cpp idt.cpp interrupts.cpp pic.cpp console.cpp syscall.S interrupt_jump.S new.cpp task_helper.S klib.cpp start.cpp
+
+start.o: start.cpp
+	$(CPP) $(CPPFLAGS) $(PRIMALFLAGS) -c start.cpp
+	$(POSTCOMPILE)
 
 %.o: %.S
 	$(AS) -c $< -o $@

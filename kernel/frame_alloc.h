@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "memory.h"
+#include "mem.h"
 
 extern void* _data_end;
 extern void* _code_start;

@@ -6,7 +6,7 @@
 #include "linker.h"
 #include "new.h"
 #include "mb.h"
-#include "memory.h"
+#include "mem.h"
 #include "malloc.h"
 #include "frame_alloc.h"
 #include "descriptors.h"
@@ -243,14 +243,14 @@ void intr_syscall(uint64_t, interrupt_state* state)
 		case 7:
 			current->wait_for = [now]() { return (jiffies - now) >= 18; };
 			schedule();
-			current->wait_for.reset();
+			current->wait_for = nullptr;
 			break;
 
 		case 8:
 			last_code = 0;
 			current->wait_for = []() { return last_code != 0; };
 			schedule();
-			current->wait_for.reset();
+			current->wait_for = nullptr;
 			break;
 	}
 }
@@ -281,8 +281,18 @@ void interrupt_kb(uint64_t, interrupt_state*)
 //	schedule();
 }
 
+#include <embxx/util/StaticFunction.h>
+
 void kmain()
 {
+	volatile float fa = 1, fb = 2, fc;
+	fc = fa / fb; (void) fc;
+	con << "FPU test passed\n";
+
+	GASSERT(false);
+
+//	die();
+
 	mallocator::test();
 
 //	pic_sys.disable(pic_sys.to_intr(0));
@@ -296,50 +306,3 @@ void kmain()
 //	pic_sys.sti();
 	k_test_init();
 }
-
-extern "C"
-{
-	void _init();
-	void _fini();
-
-	void _start(kernel_boot_info* kbi);
-}
-
-void _start(kernel_boot_info* kbi)
-{
-	_init();
-
-	if (kbi->magic != KBI_MAGIC)
-		panic("Bad magic number!");
-
-	con.init(kbi);
-	con << "\n";
-
-	gdt_init();
-	idt_init();
-
-	memory::init(kbi);
-
-	/* Map vide text buffer into memory */
-	uint64_t video_base = 0xffffffff40000000 - 0x1000;
-	memory::map_page(video_base, 0xb8000);
-	con.base = (uint8_t*) video_base;
-
-	con << "Video ram remapped\n";
-
-	/* Unmap unused memmory */
-	memory::unmap_unused();
-
-	mallocator::init(0xffffa00000000000, 1024 * 1024 * 1024);
-
-	/* Load TSS0 */
-	ltr(TSS0);
-
-
-	kmain();
-	_fini();
-
-	panic("kmain() returned!?");
-}
-
-

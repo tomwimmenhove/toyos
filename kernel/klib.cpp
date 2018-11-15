@@ -36,3 +36,9 @@ extern "C" int __cxa_atexit(void (*)(void*), void*, void*)
 	/* Pffrt. There is no exit. */
 	return 0;
 }
+
+extern "C" void __attribute__((noreturn)) __assert_func(const char* file, int line, const char* fn, const char* assertion)
+{
+	con << file << ':' << line << ':' << fn << ": Assertion '" << assertion << "' failed.\n";
+	panic("Assertion failed\n");
+}
