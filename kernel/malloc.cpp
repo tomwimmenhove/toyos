@@ -124,7 +124,7 @@ void mallocator::test()
 
 	free(c);
 	c = (uint8_t*) malloc(ic);
-	con << "Malloc c: " << ((uint64_t) c) << '\n';
+//	con << "Malloc c: " << ((uint64_t) c) << '\n';
 
 	for (int i = 0; i < ia; i++)
 		a[i] = i;

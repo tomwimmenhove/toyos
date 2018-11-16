@@ -4,7 +4,7 @@ DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 POSTCOMPILE = @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
 HACKFLAGS = -fno-threadsafe-statics # Until we implement the save guards
-DEBUGFLAGS = -ggdb -DDEBUG
+DEBUGFLAGS = -ggdb -DDEBUG -fstack-protector-all
 PRIMALFLAGS = -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -msoft-float
 INCLUDEDIRS = -I ../common -I ../newlib/c++/4.9.3/ -I ../newlib/ -I ../embxx/
 CFLAGS = $(HACKFLAGS) $(DEBUGFLAGS) -O2 $(INCLUDEDIRS) -Wall -Wextra -Werror -nostdlib -ffreestanding -lgcc -mcmodel=kernel -mno-red-zone $(DEPFLAGS)

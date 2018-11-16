@@ -7,6 +7,7 @@ extern "C"
 {
 	int __cxa_atexit(void (*f)(void*), void *objptr, void *dso);
 	void __attribute__((noreturn)) __assert_func(const char* file, int line, const char* fn, const char* assertion);
+	void __attribute__((noreturn)) __stack_chk_fail(void);
 };
 
 void *memset(void *s, int c, size_t n)
@@ -88,5 +89,12 @@ void __attribute__((noreturn)) __assert_func(const char* file, int line, const c
 {
 	con << file << ':' << line << ':' << fn << ": Assertion '" << assertion << "' failed.\n";
 	panic("Assertion failed\n");
+}
+
+uintptr_t __stack_chk_guard = 0x42dead42beefface;
+ 
+void __attribute__((noreturn)) __stack_chk_fail(void)
+{
+	panic("Stack smash detected");
 }
 

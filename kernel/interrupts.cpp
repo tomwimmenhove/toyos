@@ -43,15 +43,42 @@ extern "C" void exception_page(interrupt_state* state)
 	mallocator::handle_pg_fault(state, addr);
 }
 
-interrupts::irq_handler interrupts::irq_handlers[256];
+intr_regist interrupts::registrars[256];
 
-extern "C" void interrupt_pic(int irq_num);
+void schedule();
+
+void interrupts::init()
+{
+	for (int i = 0; i < 256; i++)
+		unregist(i);
+}
+
+void interrupts::regist(uint8_t intr, intr_regist::irq_handler handler, bool run_scheduler)
+{
+	auto& registrar = registrars[intr];
+	registrar.handler = handler;
+	registrar.run_scheduler = run_scheduler;
+}
+
+void interrupts::unregist(uint8_t intr) { registrars[intr].handler = nullptr; }
+
+void interrupts::handle(uint64_t irq_num, interrupt_state* state)
+{
+	auto registrar = registrars[irq_num];
+	if (registrar.handler)
+	{
+		registrar.handler(irq_num, state);
+		if (registrar.run_scheduler)
+			schedule();
+	}
+	else
+		con << "Interrupt " << irq_num << " has no handler\n";
+}
+
 extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state)
 {
-//	con << "Interrupt " << irq_num << " at rip=" << state->iregs.rip << '\n';
-
-	pic_sys.eoi(irq_num);
 	interrupts::handle(irq_num, state);
+	pic_sys.eoi(irq_num);
 }
 
 

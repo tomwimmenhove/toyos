@@ -39,24 +39,23 @@ struct __attribute__((packed)) interrupt_state
 	interrupt_iretq_regs iregs;
 };
 
-struct interrupts
+struct intr_regist
 {
 	using irq_handler = void (*)(uint64_t irq_num, interrupt_state* state);
-
-	static void init();
-
-	static inline void regist(uint8_t intr, irq_handler handler) { irq_handlers[intr] = handler; }
-	static inline void unregist(uint8_t intr) { irq_handlers[intr] = nullptr; }
-	static inline void handle(uint64_t irq_num, interrupt_state* state)
-	{ 
-		auto handler = irq_handlers[irq_num];
-		if (handler)
-			handler(irq_num, state);
-	} 
-
-	static irq_handler irq_handlers[256];
+	bool run_scheduler;
+	irq_handler handler;
 };
 
+struct interrupts
+{
+	static void init();
+
+	static void regist(uint8_t intr, intr_regist::irq_handler handler, bool run_scheduler = false);
+	static void unregist(uint8_t intr);
+	static void handle(uint64_t irq_num, interrupt_state* state);
+
+	static intr_regist registrars[256];
+};
 
 extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state);
 

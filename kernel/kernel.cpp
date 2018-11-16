@@ -47,7 +47,7 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 
 	for (;;)
 	{
-		ucon << '1';
+		ucon << "1";
 		syscall(7);
 	}
 }
@@ -108,8 +108,10 @@ void schedule()
 	state_switch(current->rsp, last->rsp);
 }
 
+// XXX: Am I confused? This is nonsense, right? We're not called from an interrupt. We have our own stack. We're safe from interrupts... right?!
+#if 0
 /* Sets up a temporary new stack for incoming interrupts to use */
-void save_kernel_halt()
+statid inline void halt()
 {
 	static uint8_t stack[KSTACK_SIZE];
 
@@ -122,14 +124,23 @@ void save_kernel_halt()
 			: : "r" (stack + KSTACK_SIZE)
 			: "memory", "%rax");
 }
+#else
+static inline void halt()
+{
+	asm volatile(
+			"sti\n"
+			"hlt\n"
+			"cli\n");
+}
+#endif
 
 void tsk_idle()
 {
 	for (;;)
 	{
-		save_kernel_halt();
-//		ucon << 'X';
 		schedule();
+//		ucon << 'X';
+		halt();
 	}
 }
 
@@ -185,8 +196,6 @@ void k_test_init()
 	/* Enable global interrupts */
 	pic_sys.sti();
 
-	con << "BOOM\n";
-
 	/* Start the idle task. Since we will never return from this, we can safely set the
 	 * stack pointer to the top of our current stack frame. */
 	init_tsk0((uint64_t) tsk_idle, (uint64_t) &dead_task, KERNEL_STACK_TOP);
@@ -197,7 +206,6 @@ void k_test_init()
 void intr_syscall(uint64_t, interrupt_state* state)
 {
 	auto now = jiffies;
-
 
 	switch(state->rdi)
 	{
@@ -212,12 +220,6 @@ void intr_syscall(uint64_t, interrupt_state* state)
 		case 1:
 			con.putc(state->rsi);
 			break;
-		case 2:
-			asm volatile(
-					"sti\n"
-					"hlt");
-			break;
-
 		case 5:
 			schedule();
 			break;
@@ -238,15 +240,16 @@ void intr_syscall(uint64_t, interrupt_state* state)
 			schedule();
 			current->wait_for = nullptr;
 			break;
+
+		default:
+			panic("Invalid system call", state);
 	}
 }
 
 void interrupt_timer(uint64_t, interrupt_state*)
 {
 	jiffies++;
-
-	if (jiffies % 5 == 0)
-		schedule();
+//	con << '.';
 }
 
 void interrupt_kb(uint64_t, interrupt_state*)
@@ -265,7 +268,8 @@ void kmain()
 
 //	pic_sys.disable(pic_sys.to_intr(0));
 
-	interrupts::regist(pic_sys.to_intr(0), interrupt_timer);
+	interrupts::init();
+	interrupts::regist(pic_sys.to_intr(0), interrupt_timer, true);
 	interrupts::regist(pic_sys.to_intr(1), interrupt_kb);
 	interrupts::regist(42, intr_syscall);
 
