@@ -1,8 +1,5 @@
 CFLAGS = -O2 -m32 -I ../newlib/c++/4.9.3/ -I ../newlib/ -I ../common -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -lgcc
 LDFLAGS = -m elf_i386 -T linker.ld 
-#CC = gcc
-#AS = as
-#LD = ld
 CC = x86_64-elf-gcc
 CPP = x86_64-elf-g++
 AS = x86_64-elf-gcc # Handles defines through the cpp pre-processor, as does not.
@@ -12,10 +9,10 @@ all: multiboot.elf
 
 
 boot.o: boot.S
-	$(AS) -32 -c boot.S -o boot.o
+	$(AS) -m32 -c boot.S -o boot.o
 
 jump.o: jump.S jump.h
-	$(AS) -32 -c jump.S -o jump.o
+	$(AS) -m32 -c jump.S -o jump.o
 
 main.o: main.c ../common/multiboot2.h cpuid.h sysregs.h gdt.h elf.h jump.h ../common/debug_out.h
 	$(CC) $(CFLAGS) -c main.c
