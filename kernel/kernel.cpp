@@ -256,7 +256,6 @@ void interrupt_timer(uint64_t, interrupt_state*)
 void interrupt_kb(uint64_t, interrupt_state*)
 {
 	uint8_t ch = inb_p(0x60);
-//	con << "key: " << (long long int) ch << "\n";
 
 	key_queue.push_back(ch);
 }

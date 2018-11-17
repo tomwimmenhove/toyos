@@ -45,6 +45,7 @@ extern "C" void exception_page(interrupt_state* state)
 
 intr_regist interrupts::registrars[256];
 int interrupts::nest = 0;
+bool interrupts::reschedule = false;;
 
 void schedule();
 
@@ -69,9 +70,16 @@ void interrupts::handle(uint64_t irq_num, interrupt_state* state)
 	auto registrar = registrars[irq_num];
 	if (registrar.handler)
 	{
+		/* Allow nesting for higher-priority interrupts */
+		pic_sys.sti();
+
+		/* Run the interrupt handler */
 		registrar.handler(irq_num, state);
-		if (registrar.run_scheduler && nest == 1)
-			schedule();
+
+		pic_sys.cli();
+
+		if (registrar.run_scheduler)
+			reschedule = true;
 	}
 	else
 		con << "Interrupt " << irq_num << " has no handler\n";
@@ -79,10 +87,22 @@ void interrupts::handle(uint64_t irq_num, interrupt_state* state)
 	nest--;
 }
 
+void interrupts::do_reschedule()
+{
+	/* If any of the interrupts that have happened asked for the scheduler to be
+	 * called, and we're currently not in a nested interrupt routine, call it now. */
+	if (!interrupts::nest && interrupts::reschedule)
+		schedule();
+
+	interrupts::reschedule = false;
+}
+
 extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state)
 {
 	interrupts::handle(irq_num, state);
 	pic_sys.eoi(irq_num);
-}
 
+	/* Call schedular, if needed. */
+	interrupts::do_reschedule();
+}
 

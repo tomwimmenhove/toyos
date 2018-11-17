@@ -53,9 +53,12 @@ struct interrupts
 	static void regist(uint8_t intr, intr_regist::irq_handler handler, bool run_scheduler = false);
 	static void unregist(uint8_t intr);
 	static void handle(uint64_t irq_num, interrupt_state* state);
+	static void do_reschedule();
 
+private:
 	static intr_regist registrars[256];
 	static int nest;
+	static bool reschedule;
 };
 
 extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state);
