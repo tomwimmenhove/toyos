@@ -44,6 +44,7 @@ extern "C" void exception_page(interrupt_state* state)
 }
 
 intr_regist interrupts::registrars[256];
+int interrupts::nest = 0;
 
 void schedule();
 
@@ -61,18 +62,21 @@ void interrupts::regist(uint8_t intr, intr_regist::irq_handler handler, bool run
 }
 
 void interrupts::unregist(uint8_t intr) { registrars[intr].handler = nullptr; }
-
 void interrupts::handle(uint64_t irq_num, interrupt_state* state)
 {
+	nest++;
+
 	auto registrar = registrars[irq_num];
 	if (registrar.handler)
 	{
 		registrar.handler(irq_num, state);
-		if (registrar.run_scheduler)
+		if (registrar.run_scheduler && nest == 1)
 			schedule();
 	}
 	else
 		con << "Interrupt " << irq_num << " has no handler\n";
+
+	nest--;
 }
 
 extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state)

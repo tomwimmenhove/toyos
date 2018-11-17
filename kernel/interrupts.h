@@ -55,6 +55,7 @@ struct interrupts
 	static void handle(uint64_t irq_num, interrupt_state* state);
 
 	static intr_regist registrars[256];
+	static int nest;
 };
 
 extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state);
