@@ -1,8 +1,12 @@
-CFLAGS = -O2 -m32 -I ../common -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -lgcc
+CFLAGS = -O2 -m32 -I ../newlib/c++/4.9.3/ -I ../newlib/ -I ../common -Wall -Wextra -Werror -nostdlib -nostartfiles -nodefaultlibs -lgcc
 LDFLAGS = -m elf_i386 -T linker.ld 
-CC = gcc
-AS = as
-LD = ld
+#CC = gcc
+#AS = as
+#LD = ld
+CC = x86_64-elf-gcc
+CPP = x86_64-elf-g++
+AS = x86_64-elf-gcc # Handles defines through the cpp pre-processor, as does not.
+LD = x86_64-elf-ld
 
 all: multiboot.elf
 
