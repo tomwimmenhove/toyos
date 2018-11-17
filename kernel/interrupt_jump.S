@@ -1,3 +1,6 @@
+#define __ASSEMBLY__
+#include "config.h"
+
 .section .text
 
 .altmacro
@@ -168,8 +171,14 @@ INTR_EXCEPT_NO_ERRCODE 31 intr_body_unhandled
 // The rest are 'normal' interrupts
 .set intr_n, 32
 .rept (256 - 32)
-	INTR_NORMAL %intr_n intr_body
-	.set intr_n, intr_n+1
+	.if intr_n == SYSCALL_INTR
+		call syscall_handler
+		iretq
+		.set intr_n, intr_n+1
+	.else
+		INTR_NORMAL %intr_n intr_body
+		.set intr_n, intr_n+1
+	.endif
 .endr
 
 

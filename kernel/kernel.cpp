@@ -203,22 +203,23 @@ void k_test_init()
 	panic("Idle task returned!?");
 }
 
-void intr_syscall(uint64_t, interrupt_state* state)
+extern "C" void syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)
 {
 	auto now = jiffies;
+	(void) arg0, (void) arg1, (void) arg2, (void) arg3, (void) arg4;
 
-	switch(state->rdi)
+	switch(syscall_no)
 	{
 		case 0:
 			{
-				const unsigned char* s = (const unsigned char*) state->rsi;
-				auto len = state->rdx;
+				const unsigned char* s = (const unsigned char*) arg0;
+				auto len = arg1;
 				for (size_t i = 0; i < len; i++)
 					con.putc(*s++);
 				break;
 			}
 		case 1:
-			con.putc(state->rsi);
+			con.putc(arg0);
 			break;
 		case 5:
 			schedule();
@@ -242,7 +243,7 @@ void intr_syscall(uint64_t, interrupt_state* state)
 			break;
 
 		default:
-			panic("Invalid system call", state);
+			panic("Invalid system call");
 	}
 }
 
@@ -271,7 +272,7 @@ void kmain()
 	interrupts::init();
 	interrupts::regist(pic_sys.to_intr(0), interrupt_timer, true);
 	interrupts::regist(pic_sys.to_intr(1), interrupt_kb);
-	interrupts::regist(42, intr_syscall);
+//	interrupts::regist(42, intr_syscall);
 
 //	pic_sys.sti();
 	k_test_init();
