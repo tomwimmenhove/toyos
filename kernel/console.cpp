@@ -194,9 +194,13 @@ void console_x86::write_string(const char* s)
 {
 	char ch;
 	while ((ch = *s++))
-	{
 		putc(ch);
-	}
+}
+
+void console_x86::write(const char* s, size_t n)
+{
+	while(n--)
+		putc(*s++);
 }
 
 /* The 'user' console */
@@ -212,3 +216,7 @@ void console_user::write_string(const char* s)
 	syscall(0, (uint64_t) s, strlen(s));
 }
 
+void console_user::write(const char* s, size_t n)
+{
+	syscall(0, (uint64_t) s, n);
+}

@@ -8,6 +8,7 @@ extern "C"
 	int __cxa_atexit(void (*f)(void*), void *objptr, void *dso);
 	void __attribute__((noreturn)) __assert_func(const char* file, int line, const char* fn, const char* assertion);
 	void __attribute__((noreturn)) __stack_chk_fail(void);
+	void __cxa_pure_virtual();
 };
 
 void *memset(void *s, int c, size_t n)

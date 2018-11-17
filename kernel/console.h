@@ -2,6 +2,7 @@
 #define CONSOLE_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include "config.h"
 
@@ -16,6 +17,7 @@ struct console
 {
 	virtual void putc(char ch) = 0;
 	virtual void write_string(const char* s) = 0;
+	virtual void write(const char* s, size_t n) = 0;
 
 	console& operator<< (const char* s);
 	console& operator<< (formatter& f);
@@ -73,6 +75,7 @@ struct console_x86 : public console
 
 	void putc(char ch) override;
 	void write_string(const char* s) override;
+	void write(const char* s, size_t n) override;
 
 	uint8_t* base;
 	int w;
@@ -91,6 +94,7 @@ struct console_user : public console
 {
 	void putc(char ch) override;
 	void write_string(const char* s) override;
+	void write(const char* s, size_t n) override;
 };
 
 extern console_user ucon;

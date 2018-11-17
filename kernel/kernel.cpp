@@ -33,12 +33,124 @@ void dead_task()
 
 uint64_t jiffies = 0;
 
+void schedule();
+
 std::shared_ptr<task> tasks;
 std::shared_ptr<task> current;
 
 std::shared_ptr<task> task_idle;
 
 embxx::container::StaticQueue<uint8_t, 4096> key_queue;
+
+struct driver_handle
+{
+	int dev_type;
+
+	virtual size_t read(int dev_idx, void* buf, size_t len) = 0;
+	virtual size_t write(int dev_idx, void* buf, size_t len) = 0;
+	virtual bool open(int dev_idx) = 0;
+	virtual bool close(int dev_idx) = 0;
+
+	std::shared_ptr<driver_handle> next;
+};
+
+struct driver_kbd : public driver_handle
+{
+	size_t read(int dev_idx, void* buf, size_t len) override
+	{
+		if (dev_idx != 0)
+		{
+			con << "Trying to read from terminal " << dev_idx << ". There's only one!\n";
+			return -1;
+		}
+
+		current->wait_for = []() { return key_queue.size() != 0; };
+		schedule();
+
+		uint8_t* b = (uint8_t*) buf;
+
+		/* LOCK SHIT HERE */
+		size_t size = key_queue.size();
+		size_t t = 0;
+
+		while (len && size)
+		{
+			b[t] = key_queue.back();
+			key_queue.pop_back();
+			t++;
+
+			len--;
+			size--;
+		}
+
+		return t;
+	}
+
+	size_t write(int dev_idx, void* buf, size_t len) override
+	{
+		if (dev_idx != 0)
+		{
+			con << "Trying to write to terminal " << dev_idx << ". There's only one!\n";
+			return -1;
+		}
+
+		con.write((const char*) buf, len);
+
+		return len;
+	}
+
+	bool open(int) override { return true; }
+	bool close(int) override { return true; }
+};
+
+class devices
+{
+public:
+	devices()
+	{ }
+
+	void add(std::shared_ptr<driver_handle> handle)
+	{
+		auto head = dev_head;
+
+		dev_head = handle;
+		dev_head->next = head;
+	}
+
+	std::shared_ptr<driver_handle> open(int dev_type, int dev_idx)
+	{
+		auto head = dev_head;
+
+		con << "Trying to open " << dev_type << ':' << dev_idx << '\n';
+
+		while (head)
+		{
+			if (head->dev_type == dev_type)
+			{
+				if (head->open(dev_idx))
+					return head;
+				else
+					return nullptr;
+			}
+			
+			head = head->next;
+		}
+		return nullptr;
+	}
+
+	std::shared_ptr<driver_handle> dev_head;
+};
+
+devices devs;
+
+void test()
+{
+	auto drv_kbd = std::make_shared<driver_kbd>();
+
+	drv_kbd->dev_type = 0;
+
+	devs.add(drv_kbd);
+}
 
 extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 {
@@ -57,15 +169,20 @@ void k_test_user2(uint64_t arg0, uint64_t arg1)
 	ucon << "tsk 2: arg0: " << arg0 << '\n';
 	ucon << "tsk 2: arg1: " << arg1 << '\n';
 
+	driver_handle* kbd_handle = (driver_handle*) syscall(0x10, 0, 0);
+
+	uint8_t buf[8];
 	for (;;)
 	{
-		syscall(8);
+		/* Read syscall:   sysc  handle               idx  buffer          size */
+		auto len = syscall(0x11, (uint64_t) kbd_handle, 0, (uint64_t) buf, sizeof(buf));
 
-		while (key_queue.size())
-		{
-			ucon << '(' << key_queue.back() << ')';
-			key_queue.pop_back();
-		}
+		for (size_t i = 0; i < len; i++)
+			ucon << '(' << buf[i] << ')';
+
+		/* write test */
+		const char* s = "write test\n";
+		syscall(0x12, (uint64_t) kbd_handle, 0, (uint64_t) s, strlen(s));
 	}
 }
 
@@ -146,6 +263,8 @@ void tsk_idle()
 
 void k_test_init()
 {
+	test();
+
 	/* Use the top of our current stack. It's safe to smash it, since we won't return.
 	 * We'll use 0 for the tss_rsp, because the idle task is never in user space and
 	 * will never cause a privilege change. */
@@ -203,7 +322,7 @@ void k_test_init()
 	panic("Idle task returned!?");
 }
 
-extern "C" void syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)
+extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)
 {
 	auto now = jiffies;
 	(void) arg0, (void) arg1, (void) arg2, (void) arg3, (void) arg4;
@@ -236,15 +355,18 @@ extern "C" void syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t arg
 			current->wait_for = nullptr;
 			break;
 
-		case 8:
-			current->wait_for = []() { return key_queue.size() != 0; };
-			schedule();
-			current->wait_for = nullptr;
-			break;
+		case 0x10: // open
+				return (size_t) devs.open(arg0, arg1).get();
+		case 0x11: // read
+				return ((driver_handle*) arg0)->read(arg1, (void*) arg2, arg3);
+		case 0x12: // write
+				return ((driver_handle*) arg0)->write(arg1, (void*) arg2, arg3);
 
 		default:
 			panic("Invalid system call");
 	}
+
+	return -1;
 }
 
 void interrupt_timer(uint64_t, interrupt_state*)
@@ -259,8 +381,6 @@ void interrupt_kb(uint64_t, interrupt_state*)
 
 	key_queue.push_back(ch);
 }
-
-#include "klib.h"
 
 void kmain()
 {

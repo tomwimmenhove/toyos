@@ -2,42 +2,43 @@
 #define SYSCALL_H
 
 #include <stdint.h>
+#include <stddef.h>
 
-extern "C" void __syscall1(uint64_t a);
-extern "C" void __syscall2(uint64_t a, uint64_t b);
-extern "C" void __syscall3(uint64_t a, uint64_t b, uint64_t c);
-extern "C" void __syscall4(uint64_t a, uint64_t b, uint64_t c, uint64_t d);
-extern "C" void __syscall5(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e);
-extern "C" void __syscall6(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e, uint64_t f);
+extern "C" size_t __syscall1(uint64_t a);
+extern "C" size_t __syscall2(uint64_t a, uint64_t b);
+extern "C" size_t __syscall3(uint64_t a, uint64_t b, uint64_t c);
+extern "C" size_t __syscall4(uint64_t a, uint64_t b, uint64_t c, uint64_t d);
+extern "C" size_t __syscall5(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e);
+extern "C" size_t __syscall6(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e, uint64_t f);
 
-inline void syscall(uint64_t a)
+inline size_t syscall(uint64_t a)
 {
-	__syscall1(a);
+	return __syscall1(a);
 }
 
-inline void syscall(uint64_t a, uint64_t b)
+inline size_t syscall(uint64_t a, uint64_t b)
 {
-	__syscall2(a, b);
+	return __syscall2(a, b);
 }
 
-inline void syscall(uint64_t a, uint64_t b, uint64_t c)
+inline size_t syscall(uint64_t a, uint64_t b, uint64_t c)
 {
-	__syscall3(a, b, c);
+	return __syscall3(a, b, c);
 }
 
-inline void syscall(uint64_t a, uint64_t b, uint64_t c, uint64_t d)
+inline size_t syscall(uint64_t a, uint64_t b, uint64_t c, uint64_t d)
 {
-	__syscall4(a, b, c, d);
+	return __syscall4(a, b, c, d);
 }
 
-inline void syscall(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e)
+inline size_t syscall(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e)
 {
-	__syscall5(a, b, c, d, e);
+	return __syscall5(a, b, c, d, e);
 }
 
-inline void syscall(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e, uint64_t f)
+inline size_t syscall(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e, uint64_t f)
 {
-	__syscall6(a, b, c, d, e, f);
+	return __syscall6(a, b, c, d, e, f);
 }
 
 #endif /* SYSCALL_H */
