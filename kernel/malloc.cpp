@@ -58,7 +58,7 @@ void* mallocator::malloc(size_t size)
 
 	/* Allocate more */
 	auto tail = head->prev;
-	tail->len += size;
+	tail->len += size + sizeof(mallocator_chunk);
 
 	return malloc(size);
 }
