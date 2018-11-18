@@ -4,10 +4,12 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <memory>
+#include <vector>
 #include <embxx/util/StaticFunction.h>
 
 #include "klib.h"
 #include "task_helper.h"
+#include "dev.h"
 
 /* ------------------------------------------------------------------------- */
 
@@ -68,6 +70,8 @@ struct task
 	
 	embxx::util::StaticFunction<bool()> wait_for;
 	
+	std::vector<std::shared_ptr<driver_handle>> dev_handles;
+
 	std::shared_ptr<task> next;
 
 	uint64_t rsp;       /* Task's current stack pointer */

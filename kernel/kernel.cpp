@@ -19,6 +19,7 @@
 #include "task_helper.h"
 #include "task.h"
 #include "klib.h"
+#include "dev.h" 
 
 void print_stack_use()
 {
@@ -40,18 +41,6 @@ std::shared_ptr<task> current;
 std::shared_ptr<task> task_idle;
 
 embxx::container::StaticQueue<uint8_t, 4096> key_queue;
-
-struct driver_handle
-{
-	int dev_type;
-
-	virtual size_t read(int dev_idx, void* buf, size_t len) = 0;
-	virtual size_t write(int dev_idx, void* buf, size_t len) = 0;
-	virtual bool open(int dev_idx) = 0;
-	virtual bool close(int dev_idx) = 0;
-
-	std::shared_ptr<driver_handle> next;
-};
 
 struct driver_kbd : public driver_handle
 {
@@ -105,44 +94,6 @@ struct driver_kbd : public driver_handle
 	bool close(int) override { return true; }
 };
 
-class devices
-{
-public:
-	devices()
-	{ }
-
-	void add(std::shared_ptr<driver_handle> handle)
-	{
-		auto head = dev_head;
-
-		dev_head = handle;
-		dev_head->next = head;
-	}
-
-	std::shared_ptr<driver_handle> open(int dev_type, int dev_idx)
-	{
-		auto head = dev_head;
-
-		con << "Trying to open " << dev_type << ':' << dev_idx << '\n';
-
-		while (head)
-		{
-			if (head->dev_type == dev_type)
-			{
-				if (head->open(dev_idx))
-					return head;
-				else
-					return nullptr;
-			}
-			
-			head = head->next;
-		}
-		return nullptr;
-	}
-
-	std::shared_ptr<driver_handle> dev_head;
-};
-
 devices devs;
 
 #include <vector>
@@ -180,20 +131,23 @@ void k_test_user2(uint64_t arg0, uint64_t arg1)
 	ucon << "tsk 2: arg0: " << arg0 << '\n';
 	ucon << "tsk 2: arg1: " << arg1 << '\n';
 
-	driver_handle* kbd_handle = (driver_handle*) syscall(0x10, 0, 0);
+	//driver_handle* kbd_handle = (driver_handle*) syscall(0x10, 0, 0);
+	syscall(0x10, 0, 0);
 
 	uint8_t buf[8];
 	for (;;)
 	{
 		/* Read syscall:   sysc  handle               idx  buffer          size */
-		auto len = syscall(0x11, (uint64_t) kbd_handle, 0, (uint64_t) buf, sizeof(buf));
+		//auto len = syscall(0x11, (uint64_t) kbd_handle, 0, (uint64_t) buf, sizeof(buf));
+		auto len = syscall(0x13, 0, 0, (uint64_t) buf, sizeof(buf));
 
 		for (size_t i = 0; i < len; i++)
 			ucon << '(' << buf[i] << ')';
 
 		/* write test */
 		const char* s = "write test\n";
-		syscall(0x12, (uint64_t) kbd_handle, 0, (uint64_t) s, strlen(s));
+		//syscall(0x12, (uint64_t) kbd_handle, 0, (uint64_t) s, strlen(s));
+		syscall(0x14, 0, 0, (uint64_t) s, strlen(s));
 	}
 }
 
@@ -367,12 +321,61 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 			break;
 
 		case 0x10: // open
-				return (size_t) devs.open(arg0, arg1).get();
-		case 0x11: // read
-				return ((driver_handle*) arg0)->read(arg1, (void*) arg2, arg3);
-		case 0x12: // write
-				return ((driver_handle*) arg0)->write(arg1, (void*) arg2, arg3);
+			{
+				auto handle = devs.open(arg0, arg1);
+				if (!handle)
+					return -1;
 
+				int free_fd = -1;
+				/* XXX: LOCK SHIT */
+				for (size_t i = 0; i < current->dev_handles.size(); i++)
+				{
+					if (!current->dev_handles[i])
+					{
+						free_fd = i;
+						break;
+					}
+				}
+
+				if (free_fd == -1)
+				{
+					free_fd = current->dev_handles.size();
+					/* Push a new one */
+					current->dev_handles.push_back(handle);
+				}
+				else
+					current->dev_handles[free_fd] = handle;
+				/* XXX: Safe. Unlock */
+
+				con << "fd: " << free_fd << '\n';
+
+			return (size_t) devs.open(arg0, arg1).get();
+			}
+		case 0x11: // read
+			return ((driver_handle*) arg0)->read(arg1, (void*) arg2, arg3);
+		case 0x12: // write
+			return ((driver_handle*) arg0)->write(arg1, (void*) arg2, arg3);
+
+		case 0x13:
+			{
+				if (arg0 >= current->dev_handles.size())
+					return -1;
+
+				auto handle = current->dev_handles[arg0];
+
+				return handle->read(arg1, (void*) arg2, arg3);
+			}
+			
+		case 0x14:
+			{
+				if (arg0 >= current->dev_handles.size())
+					return -1;
+
+				auto handle = current->dev_handles[arg0];
+
+				return handle->write(arg1, (void*) arg2, arg3);
+			}
+			
 		default:
 			panic("Invalid system call");
 	}
