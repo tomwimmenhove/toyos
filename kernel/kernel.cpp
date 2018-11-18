@@ -150,9 +150,9 @@ void test()
 {
 	std::vector<int> bla;
 
-	for(int i = 0; i < 10000; i++)
+	for(int i = 0; i < 10000000; i++)
 		bla.push_back(i);
-	for(int i = 0; i < 10000; i++)
+	for(int i = 0; i < 10000000; i++)
 		if (bla[i] != i)
 			panic("i != i!?\n");
 

@@ -37,7 +37,7 @@ void* mallocator::malloc(size_t size)
 			{
 				mallocator_chunk* new_chunk = (mallocator_chunk*) &chunk->data[size];
 
-				new_chunk->used = 0;
+				new_chunk->used = false;
 				new_chunk->len = chunk->len - size - sizeof(mallocator_chunk);
 
 				new_chunk->prev = chunk;
@@ -49,7 +49,7 @@ void* mallocator::malloc(size_t size)
 				chunk->len = size;
 			}
 
-			chunk->used = 1;
+			chunk->used = true;
 			chunk->magic = mallocator_chunk::MAGIC;
 
 			return chunk->data;
@@ -93,6 +93,10 @@ void mallocator::free(void* p)
 	{
 		if (p == chunk->data)
 		{
+			/* This seems redundant, but it allows us to detect double-frees.
+			 * If the first assert fails -> double free
+			 * If the second assert fails -> corrupted memory or bad pointer. */
+			assert(chunk->magic != ~mallocator_chunk::MAGIC);
 			assert(chunk->magic == mallocator_chunk::MAGIC);
 			if (!chunk->prev->used)
 			{
@@ -102,7 +106,7 @@ void mallocator::free(void* p)
 				return;
 			}
 
-			chunk->used = 0;
+			chunk->used = false;
 			chunk->magic = ~mallocator_chunk::MAGIC;
 
 			if (!chunk->next->used)
