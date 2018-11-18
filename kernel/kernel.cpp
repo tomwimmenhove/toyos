@@ -2,7 +2,6 @@
 #include <stddef.h>
 #include <memory>
 #include <embxx/container/StaticQueue.h>
-
 #include "config.h"
 #include "linker.h"
 #include "new.h"
@@ -65,23 +64,26 @@ struct driver_kbd : public driver_handle
 		}
 
 		current->wait_for = []() { return key_queue.size() != 0; };
-		schedule();
 
 		uint8_t* b = (uint8_t*) buf;
 
-		/* LOCK SHIT HERE */
-		size_t size = key_queue.size();
 		size_t t = 0;
-
-		while (len && size)
+		while (len)
 		{
+			/* Wait until data is available */
+			if (!key_queue.size())
+					schedule();
+
+			/* LOCK SHIT HERE */
 			b[t] = key_queue.back();
 			key_queue.pop_back();
-			t++;
 
+			t++;
 			len--;
-			size--;
 		}
+
+		/* No longer waiting */
+		current->wait_for = nullptr;
 
 		return t;
 	}
