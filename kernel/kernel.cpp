@@ -145,8 +145,17 @@ public:
 
 devices devs;
 
+#include <vector>
 void test()
 {
+	std::vector<int> bla;
+
+	for(int i = 0; i < 10000; i++)
+		bla.push_back(i);
+	for(int i = 0; i < 10000; i++)
+		if (bla[i] != i)
+			panic("i != i!?\n");
+
 	auto drv_kbd = std::make_shared<driver_kbd>();
 
 	drv_kbd->dev_type = 0;

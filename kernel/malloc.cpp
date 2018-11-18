@@ -51,6 +51,7 @@ void* mallocator::malloc(size_t size)
 
 			chunk->used = 1;
 			chunk->magic = mallocator_chunk::MAGIC;
+
 			return chunk->data;
 		}
 		chunk = chunk->next;
@@ -58,7 +59,29 @@ void* mallocator::malloc(size_t size)
 
 	/* Allocate more */
 	auto tail = head->prev;
-	tail->len += size + sizeof(mallocator_chunk);
+	if (!tail->used)
+	{
+		tail->used = true;
+		tail->len = size;
+		tail->magic = mallocator_chunk::MAGIC;
+
+		return tail->data;
+	}
+	else
+	{
+		/* add a new chunk at the end */
+		mallocator_chunk* new_chunk = (mallocator_chunk*) &tail->data[tail->len];
+		new_chunk-> len = size;
+		new_chunk->used = true;
+		new_chunk->magic = mallocator_chunk::MAGIC;
+
+		new_chunk->next = head;
+		new_chunk->prev = tail;
+		head->prev = new_chunk;
+		tail->next = new_chunk;
+
+		return new_chunk->data;
+	}
 
 	return malloc(size);
 }
