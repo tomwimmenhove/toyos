@@ -85,8 +85,52 @@ struct driver_kbd : public driver_handle
 
 devices devs;
 
+#include "cache_alloc.h"
+
+struct tst
+{
+	tst(int i) : i(i) { con << 'c' << ((uint64_t) this) << '\n'; }
+	~tst() { con << 'd' << ((uint64_t) this) << '\n'; }
+
+	int i;
+};
+
 void test()
 {
+	cache_alloc<tst> test;
+
+	auto a = test.take(42);
+	auto b = test.take(34);
+	auto c = test.take(45);
+	test.release(b);
+	auto d = test.take(6);
+
+	con << "{\n";
+	{
+		con << "{\n";
+		auto e = test.take_shared(13);
+		con << "e: " << ((uint64_t) e.get()) << " = " << e->i << '\n';
+		e = test.take_shared(13);
+		con << "e: " << ((uint64_t) e.get()) << " = " << e->i << '\n';
+		con << "}\n";
+	}
+	con << "}\n";
+
+	con << "{\n";
+	{
+		con << "{\n";
+		auto e = test.take_shared(15);
+		con << "e: " << ((uint64_t) e.get()) << " = " << e->i << '\n';
+		con << "}\n";
+	}
+	con << "}\n";
+
+	con << "a: " << a->i << '\n';
+	con << ((uint64_t) a) << '\n';
+	con << ((uint64_t) b) << '\n';
+	con << ((uint64_t) c) << '\n';
+	con << ((uint64_t) d) << '\n';
+
 	auto drv_kbd = std::make_shared<driver_kbd>();
 
 	drv_kbd->dev_type = 0;
