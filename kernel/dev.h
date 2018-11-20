@@ -10,8 +10,8 @@ struct driver_handle
 {
 	int dev_type;
 
-	virtual size_t read(int dev_idx, void* buf, size_t len) = 0;
-	virtual size_t write(int dev_idx, void* buf, size_t len) = 0;
+	virtual size_t read(void* buf, size_t len) = 0;
+	virtual size_t write(void* buf, size_t len) = 0;
 	virtual bool open(int dev_idx) = 0;
 	virtual bool close(int dev_idx) = 0;
 

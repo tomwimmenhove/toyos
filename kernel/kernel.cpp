@@ -20,6 +20,7 @@
 #include "task.h"
 #include "klib.h"
 #include "dev.h" 
+#include "syscalls.h"
 
 void print_stack_use()
 {
@@ -44,14 +45,8 @@ embxx::container::StaticQueue<uint8_t, 4096> key_queue;
 
 struct driver_kbd : public driver_handle
 {
-	size_t read(int dev_idx, void* buf, size_t len) override
+	size_t read(void* buf, size_t len) override
 	{
-		if (dev_idx != 0)
-		{
-			con << "Trying to read from terminal " << dev_idx << ". There's only one!\n";
-			return -1;
-		}
-
 		current->wait_for = []() { return key_queue.size() != 0; };
 
 		uint8_t* b = (uint8_t*) buf;
@@ -63,7 +58,7 @@ struct driver_kbd : public driver_handle
 			if (!key_queue.size())
 					schedule();
 
-			/* LOCK SHIT HERE */
+			/* XXX: LOCK SHIT HERE */
 			b[t] = key_queue.back();
 			key_queue.pop_back();
 
@@ -77,14 +72,8 @@ struct driver_kbd : public driver_handle
 		return t;
 	}
 
-	size_t write(int dev_idx, void* buf, size_t len) override
+	size_t write(void* buf, size_t len) override
 	{
-		if (dev_idx != 0)
-		{
-			con << "Trying to write to terminal " << dev_idx << ". There's only one!\n";
-			return -1;
-		}
-
 		con.write((const char*) buf, len);
 
 		return len;
@@ -96,17 +85,8 @@ struct driver_kbd : public driver_handle
 
 devices devs;
 
-#include <vector>
 void test()
 {
-	std::vector<int> bla;
-
-	for(int i = 0; i < 10000000; i++)
-		bla.push_back(i);
-	for(int i = 0; i < 10000000; i++)
-		if (bla[i] != i)
-			panic("i != i!?\n");
-
 	auto drv_kbd = std::make_shared<driver_kbd>();
 
 	drv_kbd->dev_type = 0;
@@ -116,8 +96,12 @@ void test()
 
 extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 {
-	ucon << "tsk 1: arg0: " << arg0 << '\n';
+	int fd = open(0, 0);
+
+    ucon << "tsk 1: arg0: " << arg0 << '\n';
 	ucon << "tsk 1: arg1: " << arg1 << '\n';
+
+	ucon << "xfd1: " << fd << '\n';
 
 	for (;;)
 	{
@@ -128,26 +112,23 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 
 void k_test_user2(uint64_t arg0, uint64_t arg1)
 {
-	ucon << "tsk 2: arg0: " << arg0 << '\n';
-	ucon << "tsk 2: arg1: " << arg1 << '\n';
+	int fd = open(0, 0);
 
-	//driver_handle* kbd_handle = (driver_handle*) syscall(0x10, 0, 0);
-	syscall(0x10, 0, 0);
+    ucon << "tsk 2: arg0: " << arg0 << '\n';
+	ucon << "tsk 2: arg1: " << arg1 << '\n';
 
 	uint8_t buf[8];
 	for (;;)
 	{
-		/* Read syscall:   sysc  handle               idx  buffer          size */
-		//auto len = syscall(0x11, (uint64_t) kbd_handle, 0, (uint64_t) buf, sizeof(buf));
-		auto len = syscall(0x13, 0, 0, (uint64_t) buf, sizeof(buf));
+		/* Read syscall:   sysc  fd  buffer          size */
+		auto len = syscall(0x13, fd, (uint64_t) buf, sizeof(buf));
 
 		for (size_t i = 0; i < len; i++)
 			ucon << '(' << buf[i] << ')';
 
 		/* write test */
 		const char* s = "write test\n";
-		//syscall(0x12, (uint64_t) kbd_handle, 0, (uint64_t) s, strlen(s));
-		syscall(0x14, 0, 0, (uint64_t) s, strlen(s));
+		syscall(0x14, 0, (uint64_t) s, strlen(s));
 	}
 }
 
@@ -287,6 +268,56 @@ void k_test_init()
 	panic("Idle task returned!?");
 }
 
+int kopen(int arg0, int arg1)
+{
+	auto handle = devs.open(arg0, arg1);
+	if (!handle)
+		return -1;
+
+	int fd = -1;
+	/* XXX: LOCK SHIT */
+	for (size_t i = 0; i < current->dev_handles.size(); i++)
+	{
+		if (!current->dev_handles[i])
+		{
+			fd = i;
+			break;
+		}
+	}
+
+	if (fd == -1)
+	{
+		fd = current->dev_handles.size();
+		/* Push a new one */
+		current->dev_handles.push_back(handle);
+	}
+	else
+		current->dev_handles[fd] = handle;
+	/* XXX: Safe. Unlock */
+
+	return (size_t) fd;;
+}
+
+size_t kread(int fd, void *buf, size_t len)
+{
+	if ((size_t) fd >= current->dev_handles.size())
+		return -1;
+
+	auto handle = current->dev_handles[fd];
+
+	return handle->read(buf, len);
+}
+
+size_t kwrite(int fd, void *buf, size_t len)
+{
+	if ((size_t) fd >= current->dev_handles.size() || !current->dev_handles[fd])
+		return -1;
+
+	auto handle = current->dev_handles[fd];
+
+	return handle->write(buf, len);
+}
+
 extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)
 {
 	auto now = jiffies;
@@ -321,61 +352,16 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 			break;
 
 		case 0x10: // open
-			{
-				auto handle = devs.open(arg0, arg1);
-				if (!handle)
-					return -1;
-
-				int free_fd = -1;
-				/* XXX: LOCK SHIT */
-				for (size_t i = 0; i < current->dev_handles.size(); i++)
-				{
-					if (!current->dev_handles[i])
-					{
-						free_fd = i;
-						break;
-					}
-				}
-
-				if (free_fd == -1)
-				{
-					free_fd = current->dev_handles.size();
-					/* Push a new one */
-					current->dev_handles.push_back(handle);
-				}
-				else
-					current->dev_handles[free_fd] = handle;
-				/* XXX: Safe. Unlock */
-
-				con << "fd: " << free_fd << '\n';
-
-			return (size_t) devs.open(arg0, arg1).get();
-			}
+			return (size_t) kopen(arg0, arg1);
 		case 0x11: // read
-			return ((driver_handle*) arg0)->read(arg1, (void*) arg2, arg3);
+			return ((driver_handle*) arg0)->read((void*) arg1, arg2);
 		case 0x12: // write
-			return ((driver_handle*) arg0)->write(arg1, (void*) arg2, arg3);
+			return ((driver_handle*) arg0)->write((void*) arg1, arg2);
 
 		case 0x13:
-			{
-				if (arg0 >= current->dev_handles.size())
-					return -1;
-
-				auto handle = current->dev_handles[arg0];
-
-				return handle->read(arg1, (void*) arg2, arg3);
-			}
-			
+			return (size_t) kread(arg0, (void*) arg1, arg2);
 		case 0x14:
-			{
-				if (arg0 >= current->dev_handles.size())
-					return -1;
-
-				auto handle = current->dev_handles[arg0];
-
-				return handle->write(arg1, (void*) arg2, arg3);
-			}
-			
+			return (size_t) kwrite(arg0, (void*) arg1, arg2);
 		default:
 			panic("Invalid system call");
 	}
