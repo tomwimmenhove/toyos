@@ -74,7 +74,7 @@ struct driver_kbd : public driver_handle
 
 	size_t write(void* buf, size_t len) override
 	{
-		con.write((const char*) buf, len);
+		con.write_buf((const char*) buf, len);
 
 		return len;
 	}
@@ -97,11 +97,10 @@ void test()
 extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 {
 	int fd = open(0, 0);
+	console_user ucon(fd);
 
     ucon << "tsk 1: arg0: " << arg0 << '\n';
 	ucon << "tsk 1: arg1: " << arg1 << '\n';
-
-	ucon << "xfd1: " << fd << '\n';
 
 	for (;;)
 	{
@@ -113,22 +112,19 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 void k_test_user2(uint64_t arg0, uint64_t arg1)
 {
 	int fd = open(0, 0);
+	console_user ucon(fd);
 
     ucon << "tsk 2: arg0: " << arg0 << '\n';
 	ucon << "tsk 2: arg1: " << arg1 << '\n';
 
-	uint8_t buf[8];
+	uint8_t buf[2];
 	for (;;)
 	{
 		/* Read syscall:   sysc  fd  buffer          size */
-		auto len = syscall(0x13, fd, (uint64_t) buf, sizeof(buf));
+		auto len = read(fd, (void*) buf, sizeof(buf));
 
 		for (size_t i = 0; i < len; i++)
 			ucon << '(' << buf[i] << ')';
-
-		/* write test */
-		const char* s = "write test\n";
-		syscall(0x14, 0, (uint64_t) s, strlen(s));
 	}
 }
 
@@ -171,23 +167,6 @@ void schedule()
 	state_switch(current->rsp, last->rsp);
 }
 
-// XXX: Am I confused? This is nonsense, right? We're not called from an interrupt. We have our own stack. We're safe from interrupts... right?!
-#if 0
-/* Sets up a temporary new stack for incoming interrupts to use */
-statid inline void halt()
-{
-	static uint8_t stack[KSTACK_SIZE];
-
-	asm volatile("mov %%rsp, %%rax\n"
-			"mov %0, %%rsp\n"
-			"sti\n"
-			"hlt\n"
-			"cli\n"
-			"mov %%rax, %%rsp\n"
-			: : "r" (stack + KSTACK_SIZE)
-			: "memory", "%rax");
-}
-#else
 static inline void halt()
 {
 	asm volatile(
@@ -195,7 +174,6 @@ static inline void halt()
 			"hlt\n"
 			"cli\n");
 }
-#endif
 
 void tsk_idle()
 {
@@ -351,13 +329,8 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 			current->wait_for = nullptr;
 			break;
 
-		case 0x10: // open
+		case 0x10:
 			return (size_t) kopen(arg0, arg1);
-		case 0x11: // read
-			return ((driver_handle*) arg0)->read((void*) arg1, arg2);
-		case 0x12: // write
-			return ((driver_handle*) arg0)->write((void*) arg1, arg2);
-
 		case 0x13:
 			return (size_t) kread(arg0, (void*) arg1, arg2);
 		case 0x14:

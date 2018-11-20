@@ -2,6 +2,7 @@
 #include "debug.h"
 #include "io.h"
 #include "syscall.h"
+#include "syscalls.h"
 #include "mb.h"
 #include "klib.h"
 
@@ -197,26 +198,29 @@ void console_x86::write_string(const char* s)
 		putc(ch);
 }
 
-void console_x86::write(const char* s, size_t n)
+void console_x86::write_buf(const char* s, size_t n)
 {
 	while(n--)
 		putc(*s++);
 }
 
 /* The 'user' console */
-console_user ucon;
+//console_user ucon;
 
 void console_user::putc(char ch)
 {
-	syscall(1, ch);
+	write(fd, (void*) &ch, 1);
+//	syscall(1, ch);
 }
 
 void console_user::write_string(const char* s)
 {
-	syscall(0, (uint64_t) s, strlen(s));
+	write(fd, (void*) s, strlen(s));
+//	syscall(0, (uint64_t) s, strlen(s));
 }
 
-void console_user::write(const char* s, size_t n)
+void console_user::write_buf(const char* s, size_t n)
 {
-	syscall(0, (uint64_t) s, n);
+	write(fd, (void*) s, n);
+//	syscall(0, (uint64_t) s, n);
 }

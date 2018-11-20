@@ -17,7 +17,7 @@ struct console
 {
 	virtual void putc(char ch) = 0;
 	virtual void write_string(const char* s) = 0;
-	virtual void write(const char* s, size_t n) = 0;
+	virtual void write_buf(const char* s, size_t n) = 0;
 
 	console& operator<< (const char* s);
 	console& operator<< (formatter& f);
@@ -75,7 +75,7 @@ struct console_x86 : public console
 
 	void putc(char ch) override;
 	void write_string(const char* s) override;
-	void write(const char* s, size_t n) override;
+	void write_buf(const char* s, size_t n) override;
 
 	uint8_t* base;
 	int w;
@@ -92,9 +92,14 @@ extern console_x86 con;
 
 struct console_user : public console
 {
+	console_user(int fd) : fd(fd)
+	{ }
+
 	void putc(char ch) override;
 	void write_string(const char* s) override;
-	void write(const char* s, size_t n) override;
+	void write_buf(const char* s, size_t n) override;
+
+	int fd;
 };
 
 extern console_user ucon;
