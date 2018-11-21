@@ -192,9 +192,25 @@ void memory::clear_page(void* page)
 	uint64_t* p = (uint64_t*) page;
 
 	for (int i = 0; i < 512; i++)
-	{
 		p[i] = 0;
-	}
+}
+
+uint64_t memory::is_mapped(uint64_t virt)
+{
+	uint64_t pml4e = (virt >> 39) & 511;
+	uint64_t pdpe = (virt >> 30) & 511;
+	uint64_t pde = (virt >> 21) & 511;
+	uint64_t pte = (virt >> 12) & 511;
+
+	volatile uint64_t* pml4 = (uint64_t*) (PG_PML4);
+	volatile uint64_t* pdp = (uint64_t*) (PG_PDP | ((virt >> 27) & 0x00000000001ff000ull) );
+	volatile uint64_t* pd = (uint64_t*) (PG_PD | ((virt >> 18) & 0x000000003ffff000ull) );
+	volatile uint64_t* pt = (uint64_t*) (PG_PT | ((virt >>  9) & 0x0000007ffffff000ull) );
+
+	if (pml4[pml4e] && pdp[pdpe] && pd[pde])
+		return pt[pte];
+
+	return 0;
 }
 
 void memory::unmap_page(uint64_t virt)

@@ -69,6 +69,7 @@ size_t frame_alloc_bitmap::find_zero()
 	}
 	return SIZE_MAX;
 }
+
 uint64_t frame_alloc_bitmap::page()
 {
 	uint64_t p = find_zero();

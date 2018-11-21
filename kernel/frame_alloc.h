@@ -5,17 +5,15 @@
 #include <stddef.h>
 
 #include "mem.h"
-
-extern void* _data_end;
-extern void* _code_start;
-
-void die();
+#include "linker.h"
+#include "debug.h"
 
 /* Frame allocator interface */
 class frame_alloc_iface
 {
 public: 
-	uint64_t virtual page() = 0;
+	virtual uint64_t page() = 0;
+	virtual void free(uint64_t addr) = 0;
 };
 
 /* Dump frame allocater to be used before we can usue our 'actual' bitmap-based allocator */
@@ -27,6 +25,7 @@ public:
 	{ }
 
 	uint64_t page() override;
+	void free(uint64_t addr) override { (void) addr; } /* Doesn't do anything. */
 
 private:
 	kernel_boot_info* kbi;
@@ -49,6 +48,7 @@ public:
 	void reset_range(size_t begin, size_t end);
 	size_t find_zero();
 	uint64_t page() override;
+	void free(uint64_t addr) override { reset(addr / PAGE_SIZE / 8); }
 	uint64_t mem_free();
 
 private:

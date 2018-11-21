@@ -21,8 +21,8 @@ LD = x86_64-elf-ld
 all: kernel.elf
 
 IOBJS = crti.o crtn.o
-OBJS = debug.o   kernel.o memory.o   malloc.o   frame_alloc.o gdt.o   idt.o   interrupts.o   pic.o   console.o   syscall.o interrupt_jump.o new.o   task_helper.o klib.o   start.o   dev.o
-SRCS = debug.cpp kernel.o memory.cpp malloc.cpp frame_alloc.o gdt.cpp idt.cpp interrupts.cpp pic.cpp console.cpp syscall.S interrupt_jump.S new.cpp task_helper.S klib.cpp start.cpp dev.cpp
+OBJS = debug.o   kernel.o mem.o   malloc.o   frame_alloc.o gdt.o   idt.o   interrupts.o   pic.o   console.o   syscall.o interrupt_jump.o new.o   task_helper.o klib.o   start.o   dev.o
+SRCS = debug.cpp kernel.o mem.cpp malloc.cpp frame_alloc.o gdt.cpp idt.cpp interrupts.cpp pic.cpp console.cpp syscall.S interrupt_jump.S new.cpp task_helper.S klib.cpp start.cpp dev.cpp
 
 start.o: start.cpp
 	$(CPP) $(CPPFLAGS) $(PRIMALFLAGS) -c start.cpp

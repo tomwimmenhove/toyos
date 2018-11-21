@@ -21,6 +21,7 @@ class memory
 public: 
 	static void init(kernel_boot_info* kbi);
 	static void unmap_unused();
+	static uint64_t is_mapped(uint64_t virt);
 	static void unmap_page(uint64_t virt);
 	static void map_page(uint64_t virt, uint64_t phys);
 	static uint64_t get_phys(uint64_t virt);

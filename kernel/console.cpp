@@ -205,22 +205,19 @@ void console_x86::write_buf(const char* s, size_t n)
 }
 
 /* The 'user' console */
-//console_user ucon;
 
 void console_user::putc(char ch)
 {
 	write(fd, (void*) &ch, 1);
-//	syscall(1, ch);
 }
 
 void console_user::write_string(const char* s)
 {
 	write(fd, (void*) s, strlen(s));
-//	syscall(0, (uint64_t) s, strlen(s));
 }
 
 void console_user::write_buf(const char* s, size_t n)
 {
 	write(fd, (void*) s, n);
-//	syscall(0, (uint64_t) s, n);
 }
+
