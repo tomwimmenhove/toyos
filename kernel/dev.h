@@ -7,14 +7,18 @@
 
 #include <memory>
 
-struct driver_handle
+struct io_handle
+{
+	virtual size_t read(void* buf, size_t len) = 0;
+	virtual size_t write(void* buf, size_t len) = 0;
+	virtual bool close() = 0;
+};
+
+struct driver
 {
 	int dev_type;
 
-	virtual size_t read(void* buf, size_t len) = 0;
-	virtual size_t write(void* buf, size_t len) = 0;
-	virtual bool open(int dev_idx) = 0;
-	virtual bool close(int dev_idx) = 0;
+	virtual std::shared_ptr<io_handle> open(int dev_idx) = 0;
 };
 
 class devices
@@ -23,11 +27,11 @@ public:
 	devices()
 	{ }
 
-	void add(std::shared_ptr<driver_handle> handle) { dev_head.push_front(handle); }
-	std::shared_ptr<driver_handle> open(int dev_type, int dev_idx);
+	void add(std::shared_ptr<driver> handle) { dev_list.push_front(handle); }
+	std::shared_ptr<io_handle> open(int dev_type, int dev_idx);
 
 private:
-	std::forward_list<std::shared_ptr<driver_handle>> dev_head;
+	std::forward_list<std::shared_ptr<driver>> dev_list;
 };
 
 

@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <memory>
 #include <embxx/container/StaticQueue.h>
+
 #include "config.h"
 #include "linker.h"
 #include "new.h"
@@ -44,7 +45,7 @@ std::shared_ptr<task> task_idle;
 
 embxx::container::StaticQueue<uint8_t, 4096> key_queue;
 
-struct driver_kbd : public driver_handle
+struct io_tty : public io_handle
 {
 	size_t read(void* buf, size_t len) override
 	{
@@ -80,8 +81,21 @@ struct driver_kbd : public driver_handle
 		return len;
 	}
 
-	bool open(int) override { return true; }
-	bool close(int) override { return true; }
+	bool close() override { return true; }
+};
+
+struct driver_tty : public driver
+{
+	std::shared_ptr<io_handle> open(int dev_idx)
+	{
+		if (dev_idx != 0)
+		{
+			con << "Trying to open a non-zero tty\n";
+			return nullptr;
+		}
+
+		return cache_alloc<io_tty>::take_shared();
+	}
 };
 
 devices devs;
@@ -96,7 +110,7 @@ void test()
 		assert(tst[i] == i);
 
 
-	auto drv_kbd = cache_alloc<driver_kbd>::take_shared();
+	auto drv_kbd = cache_alloc<driver_tty>::take_shared();
 
 	drv_kbd->dev_type = 0;
 
@@ -285,9 +299,23 @@ int kopen(int arg0, int arg1)
 	return (size_t) fd;;
 }
 
+bool kclose(int fd)
+{
+	if ((size_t) fd >= current->dev_handles.size() || !current->dev_handles[fd])
+		return -1;
+
+	if (current->dev_handles[fd]->close())
+	{
+		current->dev_handles[fd] = nullptr;
+		return true;
+	}
+
+	return false;
+}
+
 size_t kread(int fd, void *buf, size_t len)
 {
-	if ((size_t) fd >= current->dev_handles.size())
+	if ((size_t) fd >= current->dev_handles.size() || !current->dev_handles[fd])
 		return -1;
 
 	auto handle = current->dev_handles[fd];
@@ -340,6 +368,8 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 
 		case 0x10:
 			return (size_t) kopen(arg0, arg1);
+		case 0x11:
+			return (size_t) kclose(arg0);
 		case 0x13:
 			return (size_t) kread(arg0, (void*) arg1, arg2);
 		case 0x14:

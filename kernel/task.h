@@ -70,7 +70,7 @@ struct task
 	
 	embxx::util::StaticFunction<bool()> wait_for;
 	
-	std::vector<std::shared_ptr<driver_handle>> dev_handles;
+	std::vector<std::shared_ptr<io_handle>> dev_handles;
 
 	std::shared_ptr<task> next;
 
