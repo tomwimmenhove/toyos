@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <forward_list>
 
 #include <memory>
 
@@ -24,11 +25,11 @@ public:
 	devices()
 	{ }
 
-	void add(std::shared_ptr<driver_handle> handle);
+	void add(std::shared_ptr<driver_handle> handle) { dev_head.push_front(handle); }
 	std::shared_ptr<driver_handle> open(int dev_type, int dev_idx);
 
 private:
-	std::shared_ptr<driver_handle> dev_head;
+	std::forward_list<std::shared_ptr<driver_handle>> dev_head;
 };
 
 
