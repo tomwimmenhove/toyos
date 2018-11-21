@@ -21,6 +21,7 @@
 #include "klib.h"
 #include "dev.h" 
 #include "syscalls.h"
+#include "cache_alloc.h"
 
 void print_stack_use()
 {
@@ -85,8 +86,6 @@ struct driver_kbd : public driver_handle
 
 devices devs;
 
-#include "cache_alloc.h"
-
 void test()
 {
 	std::vector<int> tst;
@@ -97,8 +96,7 @@ void test()
 		assert(tst[i] == i);
 
 
-
-	auto drv_kbd = std::make_shared<driver_kbd>();
+	auto drv_kbd = cache_alloc<driver_kbd>::take_shared();
 
 	drv_kbd->dev_type = 0;
 
