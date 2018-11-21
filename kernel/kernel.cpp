@@ -201,7 +201,7 @@ void k_test_init()
 	/* Use the top of our current stack. It's safe to smash it, since we won't return.
 	 * We'll use 0 for the tss_rsp, because the idle task is never in user space and
 	 * will never cause a privilege change. */
-	task_idle = std::make_shared<task>(0, KERNEL_STACK_TOP, 0);
+	task_idle = cache_alloc<task>::take_shared(0, KERNEL_STACK_TOP, 0);
 
 	task_add(task_idle);
 
@@ -233,8 +233,8 @@ void k_test_init()
 	 * this task, it will neatly pop those registers, and 'return' to the function
 	 * pointed to by state->rip. After which that function performs the actual jump
 	 * to userspace. */
-	auto task1 = std::make_shared<task>(1, std::move(ustack1), std::make_unique<uint8_t[]>(KSTACK_SIZE), KSTACK_SIZE);
-	auto task2 = std::make_shared<task>(2, std::move(ustack2), std::make_unique<uint8_t[]>(KSTACK_SIZE), KSTACK_SIZE);
+	auto task1 = cache_alloc<task>::take_shared(1, std::move(ustack1), std::make_unique<uint8_t[]>(KSTACK_SIZE), KSTACK_SIZE);
+	auto task2 = cache_alloc<task>::take_shared(2, std::move(ustack2), std::make_unique<uint8_t[]>(KSTACK_SIZE), KSTACK_SIZE);
 
 	task_add(task1);
 	task_add(task2);
