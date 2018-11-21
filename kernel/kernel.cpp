@@ -23,6 +23,7 @@
 #include "dev.h" 
 #include "syscalls.h"
 #include "cache_alloc.h"
+#include "kbd.h"
 
 void print_stack_use()
 {
@@ -42,61 +43,6 @@ std::shared_ptr<task> tasks;
 std::shared_ptr<task> current;
 
 std::shared_ptr<task> task_idle;
-
-embxx::container::StaticQueue<uint8_t, 4096> key_queue;
-
-struct io_tty : public io_handle
-{
-	size_t read(void* buf, size_t len) override
-	{
-		current->wait_for = []() { return key_queue.size() != 0; };
-
-		uint8_t* b = (uint8_t*) buf;
-
-		size_t t = 0;
-		while (len)
-		{
-			/* Wait until data is available */
-			if (!key_queue.size())
-					schedule();
-
-			/* XXX: LOCK SHIT HERE */
-			b[t] = key_queue.back();
-			key_queue.pop_back();
-
-			t++;
-			len--;
-		}
-
-		/* No longer waiting */
-		current->wait_for = nullptr;
-
-		return t;
-	}
-
-	size_t write(void* buf, size_t len) override
-	{
-		con.write_buf((const char*) buf, len);
-
-		return len;
-	}
-
-	bool close() override { return true; }
-};
-
-struct driver_tty : public driver
-{
-	std::shared_ptr<io_handle> open(int dev_idx)
-	{
-		if (dev_idx != 0)
-		{
-			con << "Trying to open a non-zero tty\n";
-			return nullptr;
-		}
-
-		return cache_alloc<io_tty>::take_shared();
-	}
-};
 
 devices devs;
 
@@ -384,27 +330,16 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 void interrupt_timer(uint64_t, interrupt_state*)
 {
 	jiffies++;
-//	con << '.';
-}
-
-void interrupt_kb(uint64_t, interrupt_state*)
-{
-	uint8_t ch = inb_p(0x60);
-
-	key_queue.push_back(ch);
 }
 
 void kmain()
 {
 	mallocator::test();
 
-//	pic_sys.disable(pic_sys.to_intr(0));
-
 	interrupts::init();
 	interrupts::regist(pic_sys.to_intr(0), interrupt_timer, true);
-	interrupts::regist(pic_sys.to_intr(1), interrupt_kb);
-//	interrupts::regist(42, intr_syscall);
 
-//	pic_sys.sti();
+	kbd_init();
+
 	k_test_init();
 }

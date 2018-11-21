@@ -10,6 +10,9 @@
 #include "klib.h"
 #include "task_helper.h"
 #include "dev.h"
+#include "new.h"
+
+void schedule();
 
 /* ------------------------------------------------------------------------- */
 
