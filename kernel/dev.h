@@ -15,8 +15,6 @@ struct driver_handle
 	virtual size_t write(void* buf, size_t len) = 0;
 	virtual bool open(int dev_idx) = 0;
 	virtual bool close(int dev_idx) = 0;
-
-	std::shared_ptr<driver_handle> next;
 };
 
 class devices
