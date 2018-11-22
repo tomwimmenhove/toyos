@@ -24,11 +24,18 @@ size_t io_tty::read(void* buf, size_t len)
 			schedule();
 
 		/* XXX: LOCK SHIT HERE */
-		b[t] = key_queue.back();
+		char ch = key_queue.back();
+		b[t] = ch;
 		key_queue.pop_back();
+
+		/* echo */
+		con << ch;
 
 		t++;
 		len--;
+
+		if (ch == '\n')
+			break;
 	}
 
 	/* No longer waiting */
