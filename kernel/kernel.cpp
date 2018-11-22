@@ -86,14 +86,15 @@ void k_test_user2(uint64_t arg0, uint64_t arg1)
     ucon << "tsk 2: arg0: " << arg0 << '\n';
 	ucon << "tsk 2: arg1: " << arg1 << '\n';
 
-	uint8_t buf[2];
+	char buf[1];
 	for (;;)
 	{
 		/* Read syscall:   sysc  fd  buffer          size */
 		auto len = read(fd, (void*) buf, sizeof(buf));
 
 		for (size_t i = 0; i < len; i++)
-			ucon << '(' << buf[i] << ')';
+			ucon << buf[i];
+//			ucon << '(' << buf[i] << "): " << ((char) buf[i]) << '\n';
 	}
 }
 
