@@ -25,7 +25,7 @@ struct pic
 	pic(bool ltim, bool adi, bool single, uint8_t vector, uint8_t slave_msk_dev,
 			bool auto_eoi, icw4_type type, bool sfnm)
 	{
-		icw1(ltim, adi, single, false);
+		icw1(ltim, adi, single, true);
 		write_data(vector);
 		write_data(slave_msk_dev);
 		icw4(auto_eoi, type, sfnm);
