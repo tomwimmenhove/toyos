@@ -2,6 +2,9 @@
 #define INTERRUPTS_H
 
 #include <stdint.h>
+#include <forward_list>
+
+#include "new.h"
 
 /* Registers pushed by the CPU when entering an interrupt */
 struct __attribute__((packed)) interrupt_iretq_regs
@@ -39,24 +42,24 @@ struct __attribute__((packed)) interrupt_state
 	interrupt_iretq_regs iregs;
 };
 
-struct intr_regist
+struct intr_driver
 {
-	using irq_handler = void (*)(uint64_t irq_num, interrupt_state* state);
-	bool run_scheduler;
-	irq_handler handler;
+	virtual void interrupt(uint64_t irq_num, interrupt_state* state) = 0;
+	bool run_scheduler = false;
 };
 
 struct interrupts
 {
 	static void init();
 
-	static void regist(uint8_t intr, intr_regist::irq_handler handler, bool run_scheduler = false);
-	static void unregist(uint8_t intr);
+	static void add(uint8_t intr, intr_driver* driver) { drivers[intr].push_front(driver); }
+	static void remove(uint8_t intr, intr_driver* driver) { drivers[intr].remove(driver); }
+
 	static void handle(uint64_t irq_num, interrupt_state* state);
 	static void do_reschedule();
 
 private:
-	static intr_regist registrars[256];
+	static std::forward_list<intr_driver*> drivers[256];
 	static int nest;
 	static bool reschedule;
 };

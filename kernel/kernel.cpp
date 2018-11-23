@@ -155,7 +155,7 @@ void tsk_idle()
 	}
 }
 
-class ata_pio
+class ata_pio : public intr_driver
 {
 public:
 	ata_pio(uint16_t io_addr, uint16_t io_alt_addr)
@@ -229,7 +229,7 @@ public:
 		outb(0x24, io_addr + io_cmd);
 	}
 
-	void interrupt()
+	void interrupt(uint64_t, interrupt_state*) override
 	{
 		if (read_cmd)
 		{
@@ -290,15 +290,10 @@ private:
 
 ata_pio ata0(0x1f0, 0x3f6);
 
-static void ata0_irq(uint64_t, interrupt_state*)
-{
-	ata0.interrupt();
-}
-
 uint8_t ata_buf[128 * 1024];
 static void ata_test()
 {
-	interrupts::regist(pic_sys.to_intr(14), ata0_irq, false);
+	interrupts::add(pic_sys.to_intr(14), &ata0);
 
 	ata0.enable_irq();
 
@@ -489,17 +484,26 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 	return -1;
 }
 
-void interrupt_timer(uint64_t, interrupt_state*)
+struct timer : public intr_driver
 {
-	jiffies++;
-}
+	timer()
+	{
+		run_scheduler = true;
+	}
+
+	void interrupt(uint64_t, interrupt_state*) override
+	{
+		jiffies++;
+	}
+};
+
+timer tmr;
 
 void kmain()
 {
 	mallocator::test();
 
-	interrupts::init();
-	interrupts::regist(pic_sys.to_intr(0), interrupt_timer, true);
+	interrupts::add(pic_sys.to_intr(0), &tmr);
 
 	kbd_init();
 

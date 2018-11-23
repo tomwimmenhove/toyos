@@ -1,4 +1,6 @@
 #include "new.h"
+#include "malloc.h"
+#include "debug.h"
 
 void *operator new(size_t size)
 {

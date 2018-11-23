@@ -5,6 +5,7 @@
 #include "task.h"
 #include "cache_alloc.h"
 #include "pic.h"
+#include "interrupts.h"
 
 extern std::shared_ptr<task> current;
 
@@ -62,7 +63,7 @@ std::shared_ptr<io_handle> driver_tty::open(int dev_idx)
 	return cache_alloc<io_tty>::take_shared();
 }
 
-struct keyboard
+struct keyboard : public intr_driver
 {
 	keyboard()
 	 : caps(false), num(false), scroll(false),
@@ -159,26 +160,18 @@ struct keyboard
 		key_map[0x58] = kbd_f12;
 	}
 
-	void handle(uint8_t b)
-	{
-		if (b < 0x80)
-			key_down(key_map[b]);
-		else
-			key_up(key_map[b - 0x80]);
-	}
-
 	void update_leds()
 	{
-			outb_p(0xed, 0x60);
-			outb_p((caps ? 4 : 0) | (num ? 2 : 0) | (scroll ? 1 : 0), 0x60);
-			// XXX: Don't know if this works. Qemu doesn't pass through the keyboard LEDs.
+		outb_p(0xed, 0x60);
+		outb_p((caps ? 4 : 0) | (num ? 2 : 0) | (scroll ? 1 : 0), 0x60);
+		// XXX: Don't know if this works. Qemu doesn't pass through the keyboard LEDs.
 	}
 
 	void key_down(uint32_t code)
 	{
 		if (code == kbd_l_shift) { lshift = true; return; }
 		if (code == kbd_r_shift) { rshift = true; return; }
-		
+
 		if (code == kbd_l_ctrl) { lctrl = true; return; }
 		if (code == kbd_r_ctrl) { rctrl = true; return; }
 
@@ -224,6 +217,15 @@ struct keyboard
 		if (code == kbd_r_alt) { ralt = false; return; }
 	}
 
+	void interrupt(uint64_t, interrupt_state*) override
+	{
+		auto b = inb_p(0x60);
+		if (b < 0x80)
+			key_down(key_map[b]);
+		else
+			key_up(key_map[b - 0x80]);
+	}
+
 private:
 	bool caps:1;
 	bool num:1;
@@ -265,13 +267,8 @@ private:
 
 static keyboard kbd;
 
-void interrupt_kb(uint64_t, interrupt_state*)
-{
-	kbd.handle(inb_p(0x60));
-}
-
 void kbd_init()
 {
-	interrupts::regist(pic_sys.to_intr(1), interrupt_kb);
+	interrupts::add(pic_sys.to_intr(1), &kbd);
 }
 

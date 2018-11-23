@@ -2,8 +2,6 @@
 #define NEW_H
 
 #include <stddef.h>
-#include "malloc.h"
-#include "debug.h"
 
 inline void *operator new(size_t, void *p)     throw() { return p; }
 inline void *operator new[](size_t, void *p)   throw() { return p; }

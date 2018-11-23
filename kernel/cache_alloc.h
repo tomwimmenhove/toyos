@@ -6,6 +6,8 @@
 #include <utility>
 #include <forward_list>
 
+#include "debug.h"
+
 template<typename T>
 struct cache_alloc
 {

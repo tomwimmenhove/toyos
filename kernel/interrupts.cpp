@@ -44,46 +44,35 @@ extern "C" void exception_page(interrupt_state* state)
 	mallocator::handle_pg_fault(state, addr);
 }
 
-intr_regist interrupts::registrars[256];
+std::forward_list<intr_driver*> interrupts::drivers[256];
+
 int interrupts::nest = 0;
 bool interrupts::reschedule = false;;
 
 void schedule();
 
-void interrupts::init()
-{
-	for (int i = 0; i < 256; i++)
-		unregist(i);
-}
-
-void interrupts::regist(uint8_t intr, intr_regist::irq_handler handler, bool run_scheduler)
-{
-	auto& registrar = registrars[intr];
-	registrar.handler = handler;
-	registrar.run_scheduler = run_scheduler;
-}
-
-void interrupts::unregist(uint8_t intr) { registrars[intr].handler = nullptr; }
 void interrupts::handle(uint64_t irq_num, interrupt_state* state)
 {
 	nest++;
 
-	auto registrar = registrars[irq_num];
-	if (registrar.handler)
+	auto& drvs = drivers[irq_num];
+
+	if (!drvs.empty())
 	{
 		/* Allow nesting for higher-priority interrupts */
 		pic_sys.sti();
 
-		/* Run the interrupt handler */
-		registrar.handler(irq_num, state);
+		for (auto& drv : drvs)
+		{
+			drv->interrupt(irq_num, state);
+			if (drv->run_scheduler)
+				reschedule = true;
+		}
 
 		pic_sys.cli();
-
-		if (registrar.run_scheduler)
-			reschedule = true;
 	}
 	else
-		con << "Interrupt " << irq_num << " has no handler\n";
+		con << "Interrupt " << irq_num << " has no handlers\n";
 
 	nest--;
 }
