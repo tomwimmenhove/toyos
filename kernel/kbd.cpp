@@ -66,7 +66,8 @@ std::shared_ptr<io_handle> driver_tty::open(int dev_idx)
 struct keyboard : public intr_driver
 {
 	keyboard()
-	 : caps(false), num(false), scroll(false),
+	 : intr_driver(pic_sys.to_intr(1)),
+	   caps(false), num(false), scroll(false),
 	   lshift(false), lalt(false), lctrl(false),
 	   rshift(false), ralt(false), rctrl(false)
 	{
@@ -265,10 +266,10 @@ private:
 	static constexpr uint32_t kbd_r_alt   = 0xc0000000;;
 };
 
-static keyboard kbd;
+static keyboard* kbd;
 
 void kbd_init()
 {
-	interrupts::add(pic_sys.to_intr(1), &kbd);
+	kbd = new keyboard();
 }
 

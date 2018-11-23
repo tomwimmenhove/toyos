@@ -42,11 +42,7 @@ struct __attribute__((packed)) interrupt_state
 	interrupt_iretq_regs iregs;
 };
 
-struct intr_driver
-{
-	virtual void interrupt(uint64_t irq_num, interrupt_state* state) = 0;
-	bool run_scheduler = false;
-};
+struct intr_driver;
 
 struct interrupts
 {
@@ -62,6 +58,26 @@ private:
 	static std::forward_list<intr_driver*> drivers[256];
 	static int nest;
 	static bool reschedule;
+};
+
+struct intr_driver
+{
+	intr_driver(uint8_t intr)
+		: intr(intr)
+	{
+		interrupts::add(intr, this);
+	}
+
+	virtual void interrupt(uint64_t irq_num, interrupt_state* state) = 0;
+	bool run_scheduler = false;
+
+	virtual ~intr_driver()
+	{
+		interrupts::remove(intr, this);
+	}
+
+private:
+	uint8_t intr;
 };
 
 extern "C" void interrupt_handler(uint64_t irq_num, interrupt_state* state);

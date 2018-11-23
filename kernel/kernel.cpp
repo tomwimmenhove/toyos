@@ -158,8 +158,8 @@ void tsk_idle()
 class ata_pio : public intr_driver
 {
 public:
-	ata_pio(uint16_t io_addr, uint16_t io_alt_addr)
-		: io_addr(io_addr), io_alt_addr(io_alt_addr)
+	ata_pio(uint16_t io_addr, uint16_t io_alt_addr, uint8_t irq)
+		: intr_driver(irq), io_addr(io_addr), io_alt_addr(io_alt_addr)
 	{
 
 		for (int i = 0x20; i < 0x30; i++)
@@ -288,14 +288,12 @@ private:
 	static constexpr int16_t io_alt_drv_addr	= 1;
 };
 
-ata_pio ata0(0x1f0, 0x3f6);
-
 uint8_t ata_buf[128 * 1024];
 static void ata_test()
 {
-	interrupts::add(pic_sys.to_intr(14), &ata0);
+	auto ata0 = new ata_pio(0x1f0, 0x3f6, pic_sys.to_intr(14));
 
-	ata0.enable_irq();
+	ata0->enable_irq();
 
 	embxx::util::StaticFunction<void()> cb
 	{
@@ -306,7 +304,7 @@ static void ata_test()
 		}
 	};
 
-	ata0.read_48((void*) ata_buf, 0x8000 / 512, 1, cb);
+	ata0->read_48((void*) ata_buf, 0x8000 / 512, 1, cb);
 }
 
 void k_test_init()
@@ -487,6 +485,7 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 struct timer : public intr_driver
 {
 	timer()
+		: intr_driver(pic_sys.to_intr(0))
 	{
 		run_scheduler = true;
 	}
@@ -497,13 +496,13 @@ struct timer : public intr_driver
 	}
 };
 
-timer tmr;
+timer* tmr;
 
 void kmain()
 {
 	mallocator::test();
 
-	interrupts::add(pic_sys.to_intr(0), &tmr);
+	tmr = new timer();
 
 	kbd_init();
 
