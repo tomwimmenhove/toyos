@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <memory>
-#include <embxx/container/StaticQueue.h>
 
 #include "config.h"
 #include "linker.h"
@@ -24,6 +23,7 @@
 #include "syscalls.h"
 #include "cache_alloc.h"
 #include "kbd.h"
+#include "ata_pio.h"
 
 void print_stack_use()
 {
@@ -155,146 +155,12 @@ void tsk_idle()
 	}
 }
 
-class ata_pio : public intr_driver
-{
-public:
-	ata_pio(uint16_t io_addr, uint16_t io_alt_addr, uint8_t irq)
-		: intr_driver(irq), io_addr(io_addr), io_alt_addr(io_alt_addr)
-	{
-
-		for (int i = 0x20; i < 0x30; i++)
-		{
-			pic_sys.enable(i);
-			pic_sys.eoi(i);
-		}
-
-		con << "ATA test\n";
-
-		dev_select(false, true);
-
-		/* Reset */
-		outb(6, io_alt_addr + io_alt_ctrl);
-		outb(2, io_alt_addr + io_alt_ctrl);
-		wait_busy(); /* Do we need to wait? */
-	}
-
-	void enable_irq()
-	{
-		outb(0, io_alt_addr + io_alt_ctrl);
-	}
-
-	void dev_select(bool slave, bool force = false)
-	{
-		if (!force && slave == slave_active)
-			return;
-
-		outb((uint8_t) drive_reg::always | (uint8_t) drive_reg::lba | (slave ? (uint8_t) drive_reg::slave : 0), io_addr + io_drive);
-
-		wait_busy();
-	}
-
-	void wait_busy()
-	{
-		inb(io_alt_addr + io_alt_status);
-		inb(io_alt_addr + io_alt_status);
-		inb(io_alt_addr + io_alt_status);
-		inb(io_alt_addr + io_alt_status);
-
-		for (;;)
-			if ((inb(io_alt_addr + io_alt_status) & (uint8_t) status_reg::bsy) == 0)
-				break;
-	}
-
-	void read_48(void* buffer, uint64_t lba, int sect_cnt, embxx::util::StaticFunction<void()> callback)
-	{
-		assert(sect_cnt > 0 && sect_cnt <= 65536);
-		if (sect_cnt == 65536)
-			sect_cnt = 0;
-
-		read_cmd = true;
-		n_sects = sect_cnt;
-		buf = (uint16_t*) buffer;
-		cb = callback;
-
-		outb(sect_cnt >> 8,			io_addr + io_sect_cnt);
-		outb((lba >> 24) & 0xff,	io_addr + io_sect_num);
-		outb((lba >> 32) & 0xff,	io_addr + io_cyl_low);
-		outb((lba >> 40) & 0xff,	io_addr + io_cyl_high);
-
-		outb(sect_cnt & 0xff,		io_addr + io_sect_cnt);
-		outb(lba & 0xff,			io_addr + io_sect_num);
-		outb((lba >> 8) & 0xff,		io_addr + io_cyl_low);
-		outb((lba >> 16) & 0xff, 	io_addr + io_cyl_high);
-
-		outb(0x24, io_addr + io_cmd);
-	}
-
-	void interrupt(uint64_t, interrupt_state*) override
-	{
-		if (read_cmd)
-		{
-			for (int i = 0; i < 256 * n_sects; i++)
-				buf[i] = inw(io_addr + io_data);
-
-			cb();
-		}
-		else
-		{
-		}
-	}
-
-	enum class drive_reg
-	{
-		slave = 0x10,
-		always = 0x20 | 0x80,
-		lba = 0x40,
-	};
-
-	enum class status_reg
-	{
-		err = 0x01,
-		idx = 0x02,
-		corr = 0x04,
-		drq = 0x08,
-		srv = 0x10,
-		df = 0x20,
-		rdy = 0x40,
-		bsy = 0x80,
-	};
-
-private:
-	uint16_t io_addr;
-	uint16_t io_alt_addr;
-	bool slave_active = false;
-
-	bool read_cmd = false;
-	uint16_t n_sects;
-	uint16_t* buf;
-	embxx::util::StaticFunction<void()> cb;
-
-	static constexpr int16_t io_data			= 0;
-	static constexpr int16_t io_error			= 1;
-	static constexpr int16_t io_features		= 1;
-	static constexpr int16_t io_sect_cnt		= 2;
-	static constexpr int16_t io_sect_num		= 3;
-	static constexpr int16_t io_cyl_low			= 4;
-	static constexpr int16_t io_cyl_high		= 5;
-	static constexpr int16_t io_drive			= 6;
-	static constexpr int16_t io_status			= 7;
-	static constexpr int16_t io_cmd				= 7;
-
-	static constexpr int16_t io_alt_status		= 0;
-	static constexpr int16_t io_alt_ctrl		= 0;
-	static constexpr int16_t io_alt_drv_addr	= 1;
-};
-
 uint8_t ata_buf[128 * 1024];
 static void ata_test()
 {
 	auto ata0 = new ata_pio(0x1f0, 0x3f6, pic_sys.to_intr(14));
 
-	ata0->enable_irq();
-
+#if 1
 	embxx::util::StaticFunction<void()> cb
 	{
 		[]()->void
@@ -305,6 +171,14 @@ static void ata_test()
 	};
 
 	ata0->read_48((void*) ata_buf, 0x8000 / 512, 1, cb);
+#else
+	for (size_t i = 0; i < sizeof(ata_buf); i++)
+		ata_buf[i] = i;
+
+	embxx::util::StaticFunction<void()> cb { []() { con << "bingo\n"; } };
+
+	ata0->write_48((void*) ata_buf, 0, 1, cb);
+#endif
 }
 
 void k_test_init()
