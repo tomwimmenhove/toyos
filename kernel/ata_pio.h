@@ -11,35 +11,21 @@
 #include "new.h"
 #include "interrupts.h"
 
-struct ata_request
-{   
-	enum class type
-	{   
-		read,
-		write
-	};
+#include "disk.h"
 
-	type t;
-	void* buf;
-	uint64_t sect_start;
-	uint64_t sect_cnt;
-	bool slave;
-	embxx::util::StaticFunction<void()> callback;
-};
-
-class ata_pio : public intr_driver
+class ata_pio : public intr_driver, public disk_block_io
 {
 public:
 	ata_pio(uint16_t io_addr, uint16_t io_alt_addr, uint8_t irq);
 
-	void handle_request(ata_request& req);
-	void read_48(void* buffer, uint64_t lba, int sect_cnt, embxx::util::StaticFunction<void()> callback);
-	void write_48(void* buffer, uint64_t lba, int sect_cnt, embxx::util::StaticFunction<void()> callback);
+	void read(void* buffer, uint64_t blk_first, int blk_cnt, embxx::util::StaticFunction<void()> callback) override;
+	void write(void* buffer, uint64_t blk_first, int blk_cnt, embxx::util::StaticFunction<void()> callbacK) override;
 	void interrupt(uint64_t, interrupt_state*) override;
+	void select(bool slave, bool force = false);
 
 private:
+	void out_lba_48(uint64_t lba, int cnt);
 	void wait_busy();
-	void dev_select(bool slave, bool force = false);
 
 	enum class drive_reg
 	{   
@@ -84,5 +70,28 @@ private:
 	static constexpr int16_t io_alt_drv_addr    = 1;
 };
 
+class ata_disk : public disk_block_io
+{
+public:
+	ata_disk(std::shared_ptr<ata_pio> ata, bool slave)
+		: ata(ata), slave(slave)
+	{ }
+
+	void read(void* buffer, uint64_t blk_first, int blk_cnt, embxx::util::StaticFunction<void()> callback) override
+	{
+		ata->select(slave);
+		ata->read(buffer, blk_first, blk_cnt, callback); 
+	}
+
+	void write(void* buffer, uint64_t blk_first, int blk_cnt, embxx::util::StaticFunction<void()> callback) override
+	{
+		ata->select(slave);
+		ata->write(buffer, blk_first, blk_cnt, callback); 
+	}
+
+private:
+	std::shared_ptr<ata_pio> ata;
+	bool slave;
+};
 
 #endif /* ATA_PIO_H */
