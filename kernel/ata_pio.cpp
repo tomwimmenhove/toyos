@@ -1,4 +1,5 @@
 #include "ata_pio.h"
+#include "debug.h"
 
 ata_pio::ata_pio(uint16_t io_addr, uint16_t io_alt_addr, uint8_t irq)
 	: intr_driver(irq), io_addr(io_addr), io_alt_addr(io_alt_addr)
@@ -12,6 +13,9 @@ ata_pio::ata_pio(uint16_t io_addr, uint16_t io_alt_addr, uint8_t irq)
 
 	/* Unmask interrupts */
 	outb(0, io_alt_addr + io_alt_ctrl);
+
+	/* One request at a time */
+	req_sem.inc();
 }
 
 void ata_pio::select(bool slave, bool force)
@@ -36,35 +40,57 @@ void ata_pio::wait_busy()
 			break;
 }
 
-void ata_pio::read(void* buffer, uint64_t blk_first, int blk_cnt, embxx::util::StaticFunction<void()> calblk_firstck)
+void ata_pio::read(void* buffer, uint64_t blk_first, int blk_cnt)
 {
-	assert(buf == nullptr); /* Make sure we're not already processing stuff */
+	//con << "waiting for req_sem\n";
+	req_sem.dec();
+	//con << "req_sem returnde\n";
+	assert(!busy); /* Make sure we're not already processing stuff */
+	busy = true;
 
-	read_cmd = true;
-	n_sects = blk_cnt;
-	buf = (uint16_t*) buffer;
-	cb = calblk_firstck;
-	
 	out_lba_48(blk_first, blk_cnt);
 
 	outb(0x24, io_addr + io_cmd);
+
+	//con << "waiting for irq_sem\n";
+	irq_sem.dec();
+	//con << "irq_sem returned\n";
+
+	read_data(buffer, blk_cnt);
+
+	//con << "waking up req_sem";
+	req_sem.inc();
 }
 
-void ata_pio::write(void* buffer, uint64_t blk_first, int blk_cnt, embxx::util::StaticFunction<void()> calblk_firstck)
+void ata_pio::read_data(void* buffer, int blk_cnt)
 {
-	assert(buf == nullptr); /* Make sure we're not already processing stuff */
+	uint16_t* buf = (uint16_t*) buffer;
 
-	read_cmd = false;
-	n_sects = blk_cnt;
-	buf = (uint16_t*) buffer;
-	cb = calblk_firstck;
+	for (int i = 0; i < 256 * blk_cnt; i++)
+		buf[i] = inw(io_addr + io_data);
+}
+
+void ata_pio::write(void* buffer, uint64_t blk_first, int blk_cnt)
+{
+	req_sem.dec();
+	assert(!busy); /* Make sure we're not already processing stuff */
+	busy = true;
 
 	out_lba_48(blk_first, blk_cnt);
 
 	outb(0x34, io_addr + io_cmd);
 
-	/* Write buffer */
-	for (int i = 0; i < 256 * n_sects; i++)
+	write_data(buffer, blk_cnt);
+
+	irq_sem.dec();
+	req_sem.inc();
+}
+
+void ata_pio::write_data(void* buffer, int blk_cnt)
+{
+	uint16_t* buf = (uint16_t*) buffer;
+
+	for (int i = 0; i < 256 * blk_cnt; i++)
 		outw_p(buf[i], io_addr + io_data);
 }
 
@@ -86,15 +112,14 @@ void ata_pio::out_lba_48(uint64_t lba, int cnt)
 }
 
 void ata_pio::interrupt(uint64_t, interrupt_state*)
-{   
-	if (read_cmd)
-	{   
-		for (int i = 0; i < 256 * n_sects; i++)
-			buf[i] = inw(io_addr + io_data);
-	}
+{
+	/* XXX: check if iterrupt came from us! */
 
-	cb();
+	/* Read status reg clears interrupt flag */
+	inb(io_addr + io_status);
 
-	buf = nullptr;
+	busy = false;
+	//con << "waking up irq_sem";
+	irq_sem.inc();
 }
 

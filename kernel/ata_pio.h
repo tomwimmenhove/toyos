@@ -10,16 +10,18 @@
 #include "io.h"
 #include "new.h"
 #include "interrupts.h"
-
+#include "semaphore.h"
 #include "disk.h"
 
-class ata_pio : public intr_driver, public disk_block_io
+class ata_pio : public intr_driver
 {
 public:
 	ata_pio(uint16_t io_addr, uint16_t io_alt_addr, uint8_t irq);
 
-	void read(void* buffer, uint64_t blk_first, int blk_cnt, embxx::util::StaticFunction<void()> callback) override;
-	void write(void* buffer, uint64_t blk_first, int blk_cnt, embxx::util::StaticFunction<void()> callbacK) override;
+	void read(void* buffer, uint64_t blk_first, int blk_cnt);
+	void read_data(void* buffer, int blk_cnt);
+	void write(void* buffer, uint64_t blk_first, int blk_cnt);
+	void write_data(void* buffer, int blk_cnt);
 	void interrupt(uint64_t, interrupt_state*) override;
 	void select(bool slave, bool force = false);
 
@@ -49,10 +51,10 @@ private:
 	uint16_t io_alt_addr;
 	bool slave_active = false;
 
-	bool read_cmd = false;
-	uint16_t n_sects;
-	uint16_t* buf;
-	embxx::util::StaticFunction<void()> cb;
+	semaphore irq_sem;
+	semaphore req_sem;
+
+	bool busy = false;
 
 	static constexpr int16_t io_data            = 0;
 	static constexpr int16_t io_error           = 1;
@@ -70,9 +72,10 @@ private:
 	static constexpr int16_t io_alt_drv_addr    = 1;
 };
 
+/*
 class ata_disk : public disk_block_io
 {
-public:
+publi:
 	ata_disk(std::shared_ptr<ata_pio> ata, bool slave)
 		: ata(ata), slave(slave)
 	{ }
@@ -93,5 +96,5 @@ private:
 	std::shared_ptr<ata_pio> ata;
 	bool slave;
 };
-
+*/
 #endif /* ATA_PIO_H */

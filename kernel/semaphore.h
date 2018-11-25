@@ -8,7 +8,7 @@ void schedule();
 
 struct semaphore
 {   
-	void operator--()
+	void dec()
 	{   
 		current->wait_for = [this]() { return n != 0; };
 		
@@ -19,7 +19,7 @@ struct semaphore
 		current->wait_for = nullptr;
 	}
 
-	void operator++()
+	void inc()
 	{   
 		n++;
 	}

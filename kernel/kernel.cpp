@@ -63,8 +63,7 @@ void test()
 	devs.add(drv_kbd);
 }
 
-semaphore semtest;
-
+uint8_t ata_buf[128 * 1024];
 extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 {
 	int fd = open(0, 0);
@@ -73,11 +72,23 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
     ucon << "tsk 1: arg0: " << arg0 << '\n';
 	ucon << "tsk 1: arg1: " << arg1 << '\n';
 
+//	syscall(10, (uint64_t) ata_buf, 0, 1);
+	
+//	for (int i = 0; i < 512; i++)
+//		ucon << hex_u8(ata_buf[i]) << "  ";
+
+	uint8_t abuf[512];
+	syscall(10, (uint64_t) abuf, 0, 1);
+
 	for (;;)
 	{
-		ucon << "1";
-//		syscall(10);
-		syscall(7);
+		syscall(10, (uint64_t) ata_buf, 0, 1);
+		if (!memcpy(ata_buf, abuf, 512))
+			panic("Ata fucked up");
+
+		ucon << "1: " << hex_u8(ata_buf[511]);
+		//ucon << "1";
+		//syscall(7);
 	}
 }
 
@@ -89,12 +100,23 @@ void k_test_user2(uint64_t arg0, uint64_t arg1)
     ucon << "tsk 2: arg0: " << arg0 << '\n';
 	ucon << "tsk 2: arg1: " << arg1 << '\n';
 
+	uint8_t abuf[512];
+	syscall(10, (uint64_t) abuf, 0, 1);
+
 	char buf[100];
 	for (;;)
 	{
+		syscall(10, (uint64_t) ata_buf, 0x8000/512, 1);
+		if (!memcpy(ata_buf, abuf, 512))
+			panic("Ata fucked up");
+
+		ucon << "2: " << hex_u8(ata_buf[1]);
+
+		continue;
+
 		/* Read syscall:   sysc  fd  buffer          size */
 		auto len = read(fd, (void*) buf, sizeof(buf));
-++semtest;
+
 		for (size_t i = 0; i < len; i++)
 			ucon << buf[i];
 //			ucon << '(' << buf[i] << "): " << ((char) buf[i]) << '\n';
@@ -158,38 +180,7 @@ void tsk_idle()
 	}
 }
 
-uint8_t ata_buf[128 * 1024];
-
 std::shared_ptr<ata_pio> ata0;
-
-static void ata_test()
-{
-	ata0 = std::make_shared<ata_pio>(0x1f0, 0x3f6, pic_sys.to_intr(14));
-
-	ata_disk hda(ata0, false);
-
-#if 1
-	embxx::util::StaticFunction<void()> cb
-	{
-		[]()->void
-		{
-			for (int i = 0; i < 512; i++)
-				con << hex_u8(ata_buf[i]) << "  ";
-		}
-	};
-
-	hda.read((void*) ata_buf, 0x8000 / 512, 1, cb);
-
-
-#else
-	for (size_t i = 0; i < sizeof(ata_buf); i++)
-		ata_buf[i] = i;
-
-	embxx::util::StaticFunction<void()> cb { []() { con << "bingo\n"; } };
-
-	ata0->write_48((void*) ata_buf, 0, 1, cb);
-#endif
-}
 
 void k_test_init()
 {
@@ -242,10 +233,11 @@ void k_test_init()
 	tss0.rsp0 = 0;
 	current = task_idle;
 
+	/* Init ata controller */
+	ata0 = std::make_shared<ata_pio>(0x1f0, 0x3f6, pic_sys.to_intr(14));
+
 	/* Enable global interrupts */
 	pic_sys.sti();
-
-	ata_test();
 
 	/* Start the idle task. Since we will never return from this, we can safely set the
 	 * stack pointer to the top of our current stack frame. */
@@ -352,7 +344,9 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 			break;
 
 		case 10: // Test shit
-			--semtest;
+			ata0->read((void*) arg0, arg1, arg2);
+			return 0;
+			//ata_test();
 			break;
 
 		case 0x10:
