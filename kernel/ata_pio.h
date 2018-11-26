@@ -72,29 +72,18 @@ private:
 	static constexpr int16_t io_alt_drv_addr    = 1;
 };
 
-/*
 class ata_disk : public disk_block_io
 {
-publi:
-	ata_disk(std::shared_ptr<ata_pio> ata, bool slave)
-		: ata(ata), slave(slave)
-	{ }
+public:
+	ata_disk(std::shared_ptr<ata_pio> ata, bool slave);
+	~ata_disk();
 
-	void read(void* buffer, uint64_t blk_first, int blk_cnt, embxx::util::StaticFunction<void()> callback) override
-	{
-		ata->select(slave);
-		ata->read(buffer, blk_first, blk_cnt, callback); 
-	}
-
-	void write(void* buffer, uint64_t blk_first, int blk_cnt, embxx::util::StaticFunction<void()> callback) override
-	{
-		ata->select(slave);
-		ata->write(buffer, blk_first, blk_cnt, callback); 
-	}
+	void read(void* buffer, size_t pos, size_t cnt) override;
+	void write(void* buffer, size_t pos, size_t cnt) override;
 
 private:
 	std::shared_ptr<ata_pio> ata;
 	bool slave;
 };
-*/
+
 #endif /* ATA_PIO_H */

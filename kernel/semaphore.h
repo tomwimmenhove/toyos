@@ -7,7 +7,14 @@ extern std::shared_ptr<task> current;
 void schedule();
 
 struct semaphore
-{   
+{
+	semaphore(int n)
+		: n(n)
+	{ }
+
+	semaphore()
+	{ }
+
 	void dec()
 	{   
 		current->wait_for = [this]() { return n != 0; };

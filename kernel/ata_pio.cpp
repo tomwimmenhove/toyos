@@ -42,9 +42,7 @@ void ata_pio::wait_busy()
 
 void ata_pio::read(void* buffer, uint64_t blk_first, int blk_cnt)
 {
-	//con << "waiting for req_sem\n";
 	req_sem.dec();
-	//con << "req_sem returnde\n";
 	assert(!busy); /* Make sure we're not already processing stuff */
 	busy = true;
 
@@ -52,13 +50,10 @@ void ata_pio::read(void* buffer, uint64_t blk_first, int blk_cnt)
 
 	outb(0x24, io_addr + io_cmd);
 
-	//con << "waiting for irq_sem\n";
 	irq_sem.dec();
-	//con << "irq_sem returned\n";
 
 	read_data(buffer, blk_cnt);
 
-	//con << "waking up req_sem";
 	req_sem.inc();
 }
 
@@ -119,7 +114,97 @@ void ata_pio::interrupt(uint64_t, interrupt_state*)
 	inb(io_addr + io_status);
 
 	busy = false;
-	//con << "waking up irq_sem";
 	irq_sem.inc();
+}
+
+/* ------------------------------------------------------------------------- */
+
+ata_disk::ata_disk(std::shared_ptr<ata_pio> ata, bool slave)
+	: ata(ata), slave(slave)
+{
+}
+
+ata_disk::~ata_disk()
+{
+}
+
+void ata_disk::read(void* buffer, size_t pos, size_t cnt)
+{
+	uint8_t* sb = new uint8_t[512];
+	uint8_t* buf = (uint8_t*) buffer;
+
+	ata->select(slave);
+	auto partial = pos & 511;
+	if (partial)
+	{
+		auto len = 512 - partial;
+		if (len > cnt)
+			len = cnt;
+
+		ata->read(sb, pos / 512, 1);
+		memcpy((void*) buf, (void*) &sb[partial], len);
+		buf += len;
+		pos += len;
+		cnt -= len;
+	}
+
+	auto blk_cnt = cnt / 512;
+	if (blk_cnt)
+	{
+		auto len = blk_cnt * 512;
+		ata->read((void*) buf, pos / 512, blk_cnt);
+		buf += len;
+		pos += len;
+		cnt -= len;
+	}
+
+	if (cnt)
+	{
+		ata->read(sb, pos / 512, 1);
+		memcpy((void*) buf, (void*) sb, cnt);
+	}
+
+	delete sb;
+}
+
+void ata_disk::write(void* buffer, size_t pos, size_t cnt)
+{
+	uint8_t* sb = new uint8_t[512];
+	uint8_t* buf = (uint8_t*) buffer;
+
+	ata->select(slave);
+	auto partial = pos & 511;
+	if (partial)
+	{
+		auto len = 512 - partial;
+		if (len > cnt)
+			len = cnt;
+
+		ata->read(sb, pos / 512, 1);
+		memcpy((void*) &sb[partial], (void*) buf, len);
+		ata->write(sb, pos / 512, 1);
+		buf += len;
+		pos += len;
+		cnt -= len;
+	}
+
+	auto blk_cnt = cnt / 512;
+	if (blk_cnt)
+	{
+		auto len = blk_cnt * 512;
+		ata->write((void*) buf, pos / 512, blk_cnt);
+		buf += len;
+		pos += len;
+		cnt -= len;
+	}
+
+	if (cnt)
+	{
+		ata->read(sb, pos / 512, 1);
+		memcpy((void*) sb, (void*) buf, cnt);
+		ata->write(sb, pos / 512, 1);
+	}
+
+	delete sb;
 }
 

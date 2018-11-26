@@ -63,7 +63,7 @@ void test()
 	devs.add(drv_kbd);
 }
 
-uint8_t ata_buf[128 * 1024];
+uint8_t ata_buf1[128 * 1024];
 extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 {
 	int fd = open(0, 0);
@@ -78,20 +78,34 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 //		ucon << hex_u8(ata_buf[i]) << "  ";
 
 	uint8_t abuf[512];
-	syscall(10, (uint64_t) abuf, 0, 1);
+	
+	syscall(10, (uint64_t) abuf, 0x180, 6);
+	ucon << "partial: \"" << (const char*) abuf << "\"\n";
+
+	/* Test partial write */
+	abuf[0] = 42;
+	syscall(11, (uint64_t) abuf, 2, 1);
+
+	
+	syscall(10, (uint64_t) abuf, 0, 512);
 
 	for (;;)
 	{
-		syscall(10, (uint64_t) ata_buf, 0, 1);
-		if (!memcpy(ata_buf, abuf, 512))
-			panic("Ata fucked up");
+		syscall(10, (uint64_t) ata_buf1, 0, 512);
 
-		ucon << "1: " << hex_u8(ata_buf[511]);
+		if (memcmp(ata_buf1, abuf, 512) != 0)
+		{
+			ucon << "1: ATA FUCKED UP\n";
+			asm volatile("hlt"); // Cause crash
+		}
+
+		ucon << "1: " << hex_u8(ata_buf1[511]);
 		//ucon << "1";
 		//syscall(7);
 	}
 }
 
+uint8_t ata_buf2[128 * 1024];
 void k_test_user2(uint64_t arg0, uint64_t arg1)
 {
 	int fd = open(0, 0);
@@ -101,16 +115,19 @@ void k_test_user2(uint64_t arg0, uint64_t arg1)
 	ucon << "tsk 2: arg1: " << arg1 << '\n';
 
 	uint8_t abuf[512];
-	syscall(10, (uint64_t) abuf, 0, 1);
+	syscall(10, (uint64_t) abuf, 0x8000, 512);
 
 	char buf[100];
 	for (;;)
 	{
-		syscall(10, (uint64_t) ata_buf, 0x8000/512, 1);
-		if (!memcpy(ata_buf, abuf, 512))
-			panic("Ata fucked up");
+		syscall(10, (uint64_t) ata_buf2, 0x8000, 512);
+		if (memcmp(ata_buf2, abuf, 512) != 0)
+		{
+			ucon << "2: ATA FUCKED UP\n";
+			asm volatile("hlt"); // Cause crash
+		}
 
-		ucon << "2: " << hex_u8(ata_buf[1]);
+		ucon << "2: " << hex_u8(ata_buf2[1]);
 
 		continue;
 
@@ -181,6 +198,7 @@ void tsk_idle()
 }
 
 std::shared_ptr<ata_pio> ata0;
+std::shared_ptr<ata_disk> hda;
 
 void k_test_init()
 {
@@ -235,6 +253,7 @@ void k_test_init()
 
 	/* Init ata controller */
 	ata0 = std::make_shared<ata_pio>(0x1f0, 0x3f6, pic_sys.to_intr(14));
+	hda = std::make_shared<ata_disk>(ata0, false);
 
 	/* Enable global interrupts */
 	pic_sys.sti();
@@ -344,10 +363,15 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 			break;
 
 		case 10: // Test shit
-			ata0->read((void*) arg0, arg1, arg2);
+			//ata0->read((void*) arg0, arg1, arg2);
+			hda->read((void*) arg0, arg1, arg2);
 			return 0;
 			//ata_test();
 			break;
+		
+		case 11: // Test shit
+			hda->write((void*) arg0, arg1, arg2);
+			return 0;
 
 		case 0x10:
 			return (size_t) kopen(arg0, arg1);
