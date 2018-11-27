@@ -82,60 +82,49 @@ void* mallocator::malloc(size_t size)
 
 		return new_chunk->data;
 	}
-
-	return malloc(size);
 }
 
 void mallocator::free(void* p)
 {
-	auto chunk = head;
-	do
+	mallocator_chunk* chunk = (mallocator_chunk*) ((uintptr_t) p - (uintptr_t) &((mallocator_chunk*) 0)->data);
+
+	/* This seems redundant, but it allows us to detect double-frees.
+	 * If the first assert fails -> double free
+	 * If the second assert fails -> corrupted memory or bad pointer. */
+	assert(chunk->magic != ~mallocator_chunk::MAGIC);
+	assert(chunk->magic == mallocator_chunk::MAGIC);
+	if (!chunk->prev->used)
 	{
-		if (p == chunk->data)
+		/* Combine with the previous chunk */
+		chunk->prev->len += chunk->len + sizeof(mallocator_chunk);
+		chunk->next->prev = chunk->prev;
+		chunk->prev->next = chunk->next;
+		return;
+	}
+
+	chunk->used = false;
+	chunk->magic = ~mallocator_chunk::MAGIC;
+
+	if (!chunk->next->used)
+	{
+		/* Combine with the next chunk */
+		chunk->len += chunk->next->len + sizeof(mallocator_chunk);
+		chunk->next->next->prev = chunk;
+		chunk->next = chunk->next->next;
+	}
+
+	/* Unmap */
+	uint64_t start = ((uint64_t) chunk->data + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+	uint64_t stop = ((uint64_t) chunk->data + chunk->len) & ~(PAGE_SIZE - 1);
+	for (auto addr = start; addr < stop; addr += PAGE_SIZE)
+	{
+		auto phys = memory::is_mapped(addr);
+		if (phys)
 		{
-			/* This seems redundant, but it allows us to detect double-frees.
-			 * If the first assert fails -> double free
-			 * If the second assert fails -> corrupted memory or bad pointer. */
-			assert(chunk->magic != ~mallocator_chunk::MAGIC);
-			assert(chunk->magic == mallocator_chunk::MAGIC);
-			if (!chunk->prev->used)
-			{
-				/* Combine with the previous chunk */
-				chunk->prev->len += chunk->len + sizeof(mallocator_chunk);
-				chunk->prev->next = chunk->next;
-				return;
-			}
-
-			chunk->used = false;
-			chunk->magic = ~mallocator_chunk::MAGIC;
-
-			if (!chunk->next->used)
-			{
-				/* Combine with the next chunk */
-				chunk->len += chunk->next->len + sizeof(mallocator_chunk);
-				chunk->next = chunk->next->next;
-			}
-
-			/* Unmap */
-			uint64_t start = ((uint64_t) chunk->data + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-			uint64_t stop = ((uint64_t) chunk->data + chunk->len) & ~(PAGE_SIZE - 1);
-			for (auto addr = start; addr < stop; addr += PAGE_SIZE)
-			{
-				auto phys = memory::is_mapped(addr);
-				if (phys)
-				{
-					memory::unmap_page(addr);
-					memory::frame_alloc->free(phys);
-				}
-			}
-
-			return;
+			memory::unmap_page(addr);
+			memory::frame_alloc->free(phys);
 		}
-		chunk = chunk->next;
-	} while (chunk != head);
-
-	panic("Trying to free a non-existing chunk of memory!");
-	die();
+	}
 }
 
 void mallocator::handle_pg_fault(interrupt_state*, uint64_t addr)
