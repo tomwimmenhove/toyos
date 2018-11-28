@@ -9,6 +9,7 @@ image.iso:
 	cp multiboot/grub.cfg iso/boot/grub
 	cp multiboot/multiboot.elf iso/boot
 	cp kernel/kernel.elf iso/boot
+	cp -vax fs/* iso
 	grub-mkrescue -o image.iso iso/
 
 simu: all

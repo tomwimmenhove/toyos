@@ -1,5 +1,6 @@
 #include "ata_pio.h"
 #include "debug.h"
+#include "cache_alloc.h"
 
 ata_pio::ata_pio(uint16_t io_addr, uint16_t io_alt_addr, uint8_t irq)
 	: intr_driver(irq), io_addr(io_addr), io_alt_addr(io_alt_addr)
@@ -48,21 +49,24 @@ void ata_pio::read(void* buffer, uint64_t blk_first, int blk_cnt)
 
 	out_lba_48(blk_first, blk_cnt);
 
-	outb(0x24, io_addr + io_cmd);
+	uint16_t* buf = (uint16_t*) buffer;
+	while (blk_cnt--)
+	{
+		outb(0x24, io_addr + io_cmd);
 
-	irq_sem.dec();
+		irq_sem.dec();
 
-	read_data(buffer, blk_cnt);
+		read_sector(buf);
+		buf += 256;
+	}
 
 	req_sem.inc();
 }
 
-void ata_pio::read_data(void* buffer, int blk_cnt)
+void ata_pio::read_sector(uint16_t* buffer)
 {
-	uint16_t* buf = (uint16_t*) buffer;
-
-	for (int i = 0; i < 256 * blk_cnt; i++)
-		buf[i] = inw(io_addr + io_data);
+	for (int i = 0; i < 256; i++)
+		buffer[i] = inw(io_addr + io_data);
 }
 
 void ata_pio::write(void* buffer, uint64_t blk_first, int blk_cnt)
@@ -73,20 +77,23 @@ void ata_pio::write(void* buffer, uint64_t blk_first, int blk_cnt)
 
 	out_lba_48(blk_first, blk_cnt);
 
-	outb(0x34, io_addr + io_cmd);
+	uint16_t* buf = (uint16_t*) buffer;
+	while (blk_cnt--)
+	{
+		outb(0x34, io_addr + io_cmd);
 
-	write_data(buffer, blk_cnt);
+		write_sector(buf);
 
-	irq_sem.dec();
+		irq_sem.dec();
+		buf += 256;
+	}
 	req_sem.inc();
 }
 
-void ata_pio::write_data(void* buffer, int blk_cnt)
+void ata_pio::write_sector(uint16_t* buffer)
 {
-	uint16_t* buf = (uint16_t*) buffer;
-
-	for (int i = 0; i < 256 * blk_cnt; i++)
-		outw_p(buf[i], io_addr + io_data);
+	for (int i = 0; i < 256; i++)
+		outw_p(buffer[i], io_addr + io_data);
 }
 
 void ata_pio::out_lba_48(uint64_t lba, int cnt)

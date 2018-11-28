@@ -39,6 +39,7 @@ void* mallocator::malloc(size_t size)
 
 				new_chunk->used = false;
 				new_chunk->len = chunk->len - size - sizeof(mallocator_chunk);
+				new_chunk->magic = ~mallocator_chunk::MAGIC; // For testing. Won't hurt.
 
 				new_chunk->prev = chunk;
 				new_chunk->next = chunk->next;
@@ -99,7 +100,8 @@ void mallocator::free(void* p)
 		chunk->prev->len += chunk->len + sizeof(mallocator_chunk);
 		chunk->next->prev = chunk->prev;
 		chunk->prev->next = chunk->next;
-		return;
+
+		chunk = chunk->prev;
 	}
 
 	chunk->used = false;
@@ -107,6 +109,7 @@ void mallocator::free(void* p)
 
 	if (!chunk->next->used)
 	{
+		assert(chunk->next->magic == ~mallocator_chunk::MAGIC);
 		/* Combine with the next chunk */
 		chunk->len += chunk->next->len + sizeof(mallocator_chunk);
 		chunk->next->next->prev = chunk;

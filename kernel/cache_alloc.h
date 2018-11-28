@@ -36,6 +36,7 @@ struct cache_alloc
 
 	static void release(T* p)
 	{
+		//con << "release " << hex_u64((uint64_t) p) << '\n';
 		for(auto& entry: list)
 		{
 			if (&entry.stor == p)

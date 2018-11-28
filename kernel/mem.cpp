@@ -1,3 +1,5 @@
+#include <cassert>
+
 #include "mem.h"
 #include "mb.h"
 #include "new.h"
@@ -151,8 +153,10 @@ void memory::setup_usage(multiboot_tag_mmap* mb_mmap_tag, uint64_t memtop)
 
 void memory::map_page(uint64_t virt, uint64_t phys)
 {
-	virt &= ~(PAGE_SIZE - 1);
-	phys &= ~(PAGE_SIZE - 1);
+	assert((virt & (PAGE_SIZE - 1)) == 0);
+	assert((phys & (PAGE_SIZE - 1)) == 0);
+//	virt &= ~(PAGE_SIZE - 1);
+//	phys &= ~(PAGE_SIZE - 1);
 
 //	con << "Mapping virtual page 0x" << hex_u64(virt) << " to phys 0x" << hex_u64(phys) << '\n';
 
@@ -197,6 +201,7 @@ void memory::clear_page(void* page)
 
 uint64_t memory::is_mapped(uint64_t virt)
 {
+	assert((virt & (PAGE_SIZE - 1)) == 0);
 	uint64_t pml4e = (virt >> 39) & 511;
 	uint64_t pdpe = (virt >> 30) & 511;
 	uint64_t pde = (virt >> 21) & 511;
@@ -207,14 +212,15 @@ uint64_t memory::is_mapped(uint64_t virt)
 	volatile uint64_t* pd = (uint64_t*) (PG_PD | ((virt >> 18) & 0x000000003ffff000ull) );
 	volatile uint64_t* pt = (uint64_t*) (PG_PT | ((virt >>  9) & 0x0000007ffffff000ull) );
 
-	if (pml4[pml4e] && pdp[pdpe] && pd[pde])
-		return pt[pte];
+	if ((pml4[pml4e] & 1) && (pdp[pdpe] & 1) && (pd[pde] & 1) && (pt[pte] & 1))
+		return pt[pte] & ~(PAGE_SIZE - 1);
 
 	return 0;
 }
 
 void memory::unmap_page(uint64_t virt)
 {
+	assert((virt & (PAGE_SIZE - 1)) == 0);
 	virt &= ~(PAGE_SIZE - 1);
 	uint64_t pte = (virt >> 12) & 511;
 	volatile uint64_t* pt = (uint64_t*) (PG_PT | ((virt >>  9) & 0x0000007ffffff000ull) );

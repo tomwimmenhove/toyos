@@ -17,6 +17,19 @@ extern "C"
 	void __cxa_pure_virtual();
 };
 
+namespace std
+{
+	void __throw_bad_alloc()
+	{
+		panic("__throw_bad_alloc() called");
+	}
+
+	void __throw_bad_function_call()
+	{
+		panic("__throw_bad_function_call() callde");
+	}
+}
+
 void *memset(void *s, int c, size_t n)
 {
 	uint8_t* p = (uint8_t*) s;

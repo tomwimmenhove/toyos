@@ -19,13 +19,13 @@ public:
 	ata_pio(uint16_t io_addr, uint16_t io_alt_addr, uint8_t irq);
 
 	void read(void* buffer, uint64_t blk_first, int blk_cnt);
-	void read_data(void* buffer, int blk_cnt);
 	void write(void* buffer, uint64_t blk_first, int blk_cnt);
-	void write_data(void* buffer, int blk_cnt);
 	void interrupt(uint64_t, interrupt_state*) override;
 	void select(bool slave, bool force = false);
 
 private:
+	void read_sector(uint16_t* buffer);
+	void write_sector(uint16_t* buffer);
 	void out_lba_48(uint64_t lba, int cnt);
 	void wait_busy();
 
@@ -54,7 +54,7 @@ private:
 	semaphore irq_sem;
 	semaphore req_sem;
 
-	bool busy = false;
+	volatile bool busy = false;
 
 	static constexpr int16_t io_data            = 0;
 	static constexpr int16_t io_error           = 1;
@@ -70,6 +70,11 @@ private:
 	static constexpr int16_t io_alt_status      = 0;
 	static constexpr int16_t io_alt_ctrl        = 0;
 	static constexpr int16_t io_alt_drv_addr    = 1;
+};
+
+struct sector
+{
+	uint8_t data[512];
 };
 
 class ata_disk : public disk_block_io

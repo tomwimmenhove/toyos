@@ -163,10 +163,13 @@ void console_x86::init(kernel_boot_info* kbi)
 	}
 }
 
+bool shut_up_hack = false;
+
 void console_x86::putc(char ch)
 {
 	qemu_out_char(ch);
-
+	if (shut_up_hack)
+		return;
 	/* new line? */
 	if (ch == '\n')
 		pos = (pos + w) - (pos % w);
