@@ -175,7 +175,7 @@ uint64_t load_kernel(struct multiboot_tag_module *module)
 		putstring(" of size ");
 		put_hex_long(phdr->p_memsz);
 		putstring(" at file offset ");
-		put_hex_int((uint32_t) &module_ptr[phdr->p_offset]);
+		put_hex_int((uint32_t) phdr->p_offset);
 		putstring(": ");
 
 		switch(phdr->p_type)
