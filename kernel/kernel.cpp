@@ -78,7 +78,15 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
     ucon << "tsk 1: arg0: " << arg0 << '\n';
 	ucon << "tsk 1: arg1: " << arg1 << '\n';
 
+	/* Hacky-as-fuck cd init thing */
 	syscall(12);
+
+	/* Open a file on the cd */
+	auto cd_fd = open("boot/../bla/othefile.txt;1");
+	auto len = read(cd_fd, (void*) ata_buf1, sizeof(ata_buf1));
+
+	ucon.write_buf((const char*) ata_buf1, len);
+
 	//syscall(9, (uint64_t) ata_buf1, 0, 10);
 
 //	syscall(10, (uint64_t) ata_buf, 0, 1);
@@ -299,6 +307,43 @@ struct iso9660_dir_entry_cache
 	std::vector<std::shared_ptr<iso9660_dir_entry_cache>> nodes;
 };
 
+struct iso9660;
+
+struct iso9660_io_handle : public io_handle
+{
+	iso9660_io_handle(std::shared_ptr<disk_block_io> device, uint32_t start, uint32_t size)
+		: device(device), start(start), pos(0), size(size)
+	{ }
+
+	size_t read(void* buf, size_t len)
+	{
+		if (pos + len > size)
+			len = size - pos;
+
+		device->read(buf, start + pos, len);
+		pos += len;
+
+		return len;
+	}
+
+	size_t write(void*, size_t)
+	{
+		return -1;
+	}
+
+	bool close()
+	{
+		return true;
+	}
+
+private:
+	std::shared_ptr<disk_block_io> device;
+
+	uint32_t start;
+	uint32_t pos;
+	uint32_t size;
+};
+
 struct iso9660
 {
 	iso9660(std::shared_ptr<disk_block_io> device)
@@ -310,7 +355,6 @@ struct iso9660
 
 		for (int i = 0; ; i++)
 		{
-			//auto vol_desk = read_vold_desk(i);
 			std::shared_ptr<iso9660_vol_desc> vol_desk = read_vold_desk(i);
 
 			if (vol_desk->type == 0x01) /* Primary volume descriptor */
@@ -324,83 +368,65 @@ struct iso9660
 		}
 
 		if (!prim)
-			return;
+			panic("ISO9660: No primary volume descriptor found");
+	}
 
-		std::function<void(iso9660_dir_entry*, int)> d_list = [&](iso9660_dir_entry* de, int depth)
-		{
-			auto extent_dat = std::make_unique<uint8_t[]>(de->data_len_le);
-			device->read((void*) extent_dat.get(), de->extent_le * prim->blk_size_le, de->data_len_le);
+	std::shared_ptr<io_handle> open(const char* name)
+	{
+		con << "neem: " << name << '\n';
+		auto dp = find_de_path(&prim->root_dir, name);
+		if (!dp)
+			return nullptr;
 
-			int idx = 0;
-			for (uint32_t i = 0; i < de->data_len_le;)
-			{
-				iso9660_dir_entry* child = (iso9660_dir_entry*) (((uintptr_t) extent_dat.get()) + i);
+		if (dp->file_flags & 0x02)
+			return nullptr;
 
-				if (!child->len)
-					break;
+		/* XXX: GCC bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=36566 */
+		return std::make_shared<iso9660_io_handle>(device, dp->extent_le * prim->blk_size_le, (uint32_t) dp->data_len_le);
+	}
 
-				if (idx >= 2)
-				{
-//					for (int i = 0; i < depth * 4; i++)
-//						con << ' ';
-//					con.write_buf(child->file_id, child->file_id_len);
-//					con.putc('\n');
+	static bool probe(std::shared_ptr<disk_block_io> device)
+	{
+		auto vol_desk = read_vold_desk(device, 0);
 
-					if (child->file_flags & (1 << 1)) // Subdirectory?
-					{
-						d_list(child, depth + 1);
-					}
-				}
+		return vol_desk->version == 0x01 &&
+			vol_desk->ident[0] == 'C' &&
+			vol_desk->ident[1] == 'D' &&
+			vol_desk->ident[2] == '0' &&
+			vol_desk->ident[3] == '0' &&
+			vol_desk->ident[4] == '1';
+	}
 
-				i += child->len;
-				idx++;
-			}
-		};
-
-		d_list(&prim->root_dir, 0);
-
-		con << "root len: " << prim->root_dir.len << '\n';
-		con << "root name len: " << prim->root_dir.file_id_len << '\n';
-		con << "root name: " << prim->root_dir.file_id << '\n';
-
-		const char* file = "bla/othefile.txt;1";
-
-		auto d = &prim->root_dir;
+private:
+	std::shared_ptr<iso9660_dir_entry> find_de_path(iso9660_dir_entry* de, const char* name)
+	{
+		std::unique_ptr<char, decltype(&mallocator::free)> sdup(strdup(name), &mallocator::free);
 		std::shared_ptr<iso9660_dir_entry> dp;
 
-//		while (1)
+		char* s = sdup.get();
+		const char* se = s;
+
+		while (*s)
 		{
-			char *sdup = strdup(file);
-			char* s = sdup;
-			const char* se = s;
-
-			while (*s)
+			if (*s == '/')
 			{
-				if (*s == '/')
-				{
-					*s = 0;
+				*s = 0;
 
-					con << "part: " << se << '\n';
-					dp = find_de(d, se);
-					
-					d = dp.get();
+				/* Find the current path entry within the current directory entry */
+				dp = find_de(de, se);
+				if (!dp)
+					return nullptr;
 
-					se = s + 1;
-				}
+				de = dp.get();
 
-				s++;
+				/* New path entry starts at the next character */
+				se = s + 1;
 			}
 
-			dp = find_de(d, se);
-			d = dp.get();
-
-			auto extent_dat = std::make_unique<uint8_t[]>(d->data_len_le);
-			device->read((void*) extent_dat.get(), d->extent_le * prim->blk_size_le, d->data_len_le);
-
-			con.write_buf((const char*) extent_dat.get(), d->data_len_le);
-
-			mallocator::free(sdup);
+			s++;
 		}
+
+		return find_de(de, se);
 	}
 
 	std::shared_ptr<iso9660_dir_entry> find_de(iso9660_dir_entry* de, const char* name)
@@ -418,7 +444,7 @@ struct iso9660
 			if (!child->len)
 				break;
 
-			if (name_len == child->file_id_len && memcmp(name, child->file_id, child->file_id_len) == 0)
+			if (test_name(child, idx, name, name_len))
 			{
 				auto r = std::make_shared<iso9660_dir_entry>();
 				*r = *child;
@@ -433,19 +459,17 @@ struct iso9660
 		return nullptr;
 	}
 
-	static bool probe(std::shared_ptr<disk_block_io> device)
+	bool test_name(iso9660_dir_entry* de, int idx, const char* name, size_t name_len)
 	{
-		auto vol_desk = read_vold_desk(device, 0);
+		if (idx == 0 && strncmp(name, ".", name_len) == 0)
+			return true;
 
-		return vol_desk->version == 0x01 &&
-			vol_desk->ident[0] == 'C' &&
-			vol_desk->ident[1] == 'D' &&
-			vol_desk->ident[2] == '0' &&
-			vol_desk->ident[3] == '0' &&
-			vol_desk->ident[4] == '1';
+		if (idx == 1 && strncmp(name, "..", name_len) == 0)
+			return true;
+
+		return name_len == de->file_id_len && memcmp(name, de->file_id, de->file_id_len) == 0;
 	}
 
-private:
 	static std::shared_ptr<iso9660_vol_desc> read_vold_desk(std::shared_ptr<disk_block_io> device, int n)
 	{
 		auto vol_desk = std::make_shared<iso9660_vol_desc>();
@@ -460,6 +484,10 @@ private:
 	//iso9660_vol_desc_primary* prim = nullptr;
 };
 
+//"boot/../bla/othefile.txt;1"
+
+std::shared_ptr<iso9660> cd;
+
 void iso9660_test()
 {
 	auto is_cd = iso9660::probe(hda);
@@ -468,7 +496,8 @@ void iso9660_test()
 
 	if (is_cd)
 	{
-		iso9660 cdrom(hda);
+		cd = std::make_shared<iso9660>(hda);
+//		iso9660 cdrom(hda);
 	}
 }
 
@@ -537,44 +566,49 @@ void k_test_init()
 	panic("Idle task returned!?");
 }
 
-int kopen(int arg0, int arg1)
+int add_handle(std::shared_ptr<io_handle> handle)
 {
-	auto handle = devs.open(arg0, arg1);
-	if (!handle)
-		return -1;
-
 	int fd = -1;
 	/* XXX: LOCK SHIT */
-	for (size_t i = 0; i < current->dev_handles.size(); i++)
-	{
-		if (!current->dev_handles[i])
-		{
+	for (size_t i = 0; i < current->io_handles.size(); i++)
+	{   
+		if (!current->io_handles[i])
+		{   
 			fd = i;
 			break;
 		}
 	}
 
 	if (fd == -1)
-	{
-		fd = current->dev_handles.size();
+	{   
+		fd = current->io_handles.size();
 		/* Push a new one */
-		current->dev_handles.push_back(handle);
+		current->io_handles.push_back(handle);
 	}
 	else
-		current->dev_handles[fd] = handle;
+		current->io_handles[fd] = handle;
 	/* XXX: Safe. Unlock */
 
 	return (size_t) fd;;
 }
 
-bool kclose(int fd)
+int kopen(int arg0, int arg1)
 {
-	if ((size_t) fd >= current->dev_handles.size() || !current->dev_handles[fd])
+	auto handle = devs.open(arg0, arg1);
+	if (!handle)
 		return -1;
 
-	if (current->dev_handles[fd]->close())
+	return add_handle(handle);
+}
+
+bool kclose(int fd)
+{
+	if ((size_t) fd >= current->io_handles.size() || !current->io_handles[fd])
+		return -1;
+
+	if (current->io_handles[fd]->close())
 	{
-		current->dev_handles[fd] = nullptr;
+		current->io_handles[fd] = nullptr;
 		return true;
 	}
 
@@ -583,26 +617,22 @@ bool kclose(int fd)
 
 size_t kread(int fd, void *buf, size_t len)
 {
-	if ((size_t) fd >= current->dev_handles.size() || !current->dev_handles[fd])
+	if ((size_t) fd >= current->io_handles.size() || !current->io_handles[fd])
 		return -1;
 
-	auto handle = current->dev_handles[fd];
+	auto handle = current->io_handles[fd];
 
 	return handle->read(buf, len);
 }
 
 size_t kwrite(int fd, void *buf, size_t len)
 {
-	if ((size_t) fd >= current->dev_handles.size() || !current->dev_handles[fd])
+	if ((size_t) fd >= current->io_handles.size() || !current->io_handles[fd])
 		return -1;
 
-	auto handle = current->dev_handles[fd];
+	auto handle = current->io_handles[fd];
 
 	return handle->write(buf, len);
-}
-
-void release_tst(tst*)
-{
 }
 
 extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)
@@ -657,23 +687,8 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 			iso9660_test();
 			return 0;
 
-		case 13:
-			for (int i = 0;;i++)
-			{
-				//con << i << ' ';
-				{
-					auto test = cache_alloc<tst>::take_shared(); (void) test;
-					//auto test = cache_alloc<tst>::take();
-
-					//(void)test;
-
-					//std::shared_ptr<tst>(test, cache_alloc<tst>::release);
-					//std::shared_ptr<tst>(test, &release_tst);
-
-					//cache_alloc<tst>::release(test);
-				}
-			}
-			break;
+		case 0x0d:
+			return add_handle(cd->open((const char*) arg0));
 
 		case 0x10:
 			return (size_t) kopen(arg0, arg1);
