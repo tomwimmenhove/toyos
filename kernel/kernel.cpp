@@ -305,66 +305,31 @@ struct iso9660
 		: device(device)
 	{
 		iso9660_dir_entry_cache root;
-		std::unique_ptr<uint8_t[]> pt;
 
 		std::vector<iso9660_path_table_entry*> pte_all;
-		iso9660_vol_desc_primary* prim = nullptr;
 
 		for (int i = 0; ; i++)
 		{
-			auto vol_desk = read_vold_desk(i);
-
-			con << "iso9660: volume descriptor " << i << " has type " << vol_desk->type << '\n';
-
-			con << "sizeof(iso9660_vol_desc_primary): " << sizeof(iso9660_vol_desc_primary) << '\n';
+			//auto vol_desk = read_vold_desk(i);
+			std::shared_ptr<iso9660_vol_desc> vol_desk = read_vold_desk(i);
 
 			if (vol_desk->type == 0x01) /* Primary volume descriptor */
 			{
-				prim = (iso9660_vol_desc_primary*) vol_desk.get();
-
-				pt = std::make_unique<uint8_t[]>(prim->path_tbl_size_le);
-
-				con << "prim->le_path_tbl_le: 0x" << hex_u32(prim->le_path_tbl) << ", " << prim->le_path_tbl << '\n';
-				con << "prim->le_path_tbl_be: 0x" << hex_u32(prim->be_path_tbl) << ", " << prim->be_path_tbl << '\n';
-
-				device->read((void*) pt.get(), prim->le_path_tbl * prim->blk_size_le, prim->path_tbl_size_le);
-
-				int idx = 0;
-				for (uintptr_t i = 0; i < prim->path_tbl_size_le;)
-				{
-					iso9660_path_table_entry* pte = (iso9660_path_table_entry*) (((uintptr_t) pt.get()) + i);
-
-					auto de = std::make_shared<iso9660_dir_entry_cache>();
-					de->pte = pte;
-
-					root.nodes.push_back(de);
-
-					con << "dir[" << idx << "]: ";
-					con.write_buf(pte->name, pte->len);
-					con << " -- parent: " << pte->parent << '\n';
-
-					i += (pte->len + sizeof(iso9660_path_table_entry) + 1) & ~1;
-					idx++;
-				}
-
-				//path_tbl_size_le
-				//le_path_tbl
-
-				con << "sys_id: " << prim->vol_id << '\n';
+				prim = std::make_shared<iso9660_vol_desc_primary>();
+				/* Copy */
+				*prim = *reinterpret_cast<iso9660_vol_desc_primary*>(vol_desk.get());
 			}
-
-			if (vol_desk->type == 255)
+			else if (vol_desk->type == 255)
 				break;
 		}
 
 		if (!prim)
 			return;
 
-		std::function<void(iso9660_dir_entry*, int)> pla = [&](iso9660_dir_entry* de, int depth)
+		std::function<void(iso9660_dir_entry*, int)> d_list = [&](iso9660_dir_entry* de, int depth)
 		{
 			auto extent_dat = std::make_unique<uint8_t[]>(de->data_len_le);
 			device->read((void*) extent_dat.get(), de->extent_le * prim->blk_size_le, de->data_len_le);
-
 
 			int idx = 0;
 			for (uint32_t i = 0; i < de->data_len_le;)
@@ -376,15 +341,14 @@ struct iso9660
 
 				if (idx >= 2)
 				{
-					for (int i = 0; i < depth * 4; i++)
-						con << ' ';
-
-					con.write_buf(child->file_id, child->file_id_len);
-					con.putc('\n');
+//					for (int i = 0; i < depth * 4; i++)
+//						con << ' ';
+//					con.write_buf(child->file_id, child->file_id_len);
+//					con.putc('\n');
 
 					if (child->file_flags & (1 << 1)) // Subdirectory?
 					{
-						pla(child, depth + 1);
+						d_list(child, depth + 1);
 					}
 				}
 
@@ -393,40 +357,80 @@ struct iso9660
 			}
 		};
 
-		pla(&prim->root_dir, 0);
+		d_list(&prim->root_dir, 0);
 
 		con << "root len: " << prim->root_dir.len << '\n';
 		con << "root name len: " << prim->root_dir.file_id_len << '\n';
 		con << "root name: " << prim->root_dir.file_id << '\n';
-#if 0
-		//for(auto& e: root.nodes)
-		for(size_t i = 0; i < root.nodes.size(; i++)
+
+		const char* file = "bla/othefile.txt;1";
+
+		auto d = &prim->root_dir;
+		std::shared_ptr<iso9660_dir_entry> dp;
+
+//		while (1)
 		{
-			auto& e = root.nodes[i];
+			char *sdup = strdup(file);
+			char* s = sdup;
+			const char* se = s;
 
-			con.write_buf(e->pte->name, e->pte->len);
-			//con.putc('\n');
-			con << ", parent=" << e->pte->parent << '\n';
+			while (*s)
+			{
+				if (*s == '/')
+				{
+					*s = 0;
 
-			root.nodes[e->pte->parent - 1]->nodes.push_back(e);
+					con << "part: " << se << '\n';
+					dp = find_de(d, se);
+					
+					d = dp.get();
+
+					se = s + 1;
+				}
+
+				s++;
+			}
+
+			dp = find_de(d, se);
+			d = dp.get();
+
+			auto extent_dat = std::make_unique<uint8_t[]>(d->data_len_le);
+			device->read((void*) extent_dat.get(), d->extent_le * prim->blk_size_le, d->data_len_le);
+
+			con.write_buf((const char*) extent_dat.get(), d->data_len_le);
+
+			mallocator::free(sdup);
+		}
+	}
+
+	std::shared_ptr<iso9660_dir_entry> find_de(iso9660_dir_entry* de, const char* name)
+	{
+		auto extent_dat = std::make_unique<uint8_t[]>(de->data_len_le);
+		device->read((void*) extent_dat.get(), de->extent_le * prim->blk_size_le, de->data_len_le);
+
+		auto name_len = strlen(name);
+
+		int idx = 0;
+		for (uint32_t i = 0; i < de->data_len_le;)
+		{
+			iso9660_dir_entry* child = (iso9660_dir_entry*) (((uintptr_t) extent_dat.get()) + i);
+
+			if (!child->len)
+				break;
+
+			if (name_len == child->file_id_len && memcmp(name, child->file_id, child->file_id_len) == 0)
+			{
+				auto r = std::make_shared<iso9660_dir_entry>();
+				*r = *child;
+
+				return r;
+			}
+
+			i += child->len;
+			idx++;
 		}
 
-		con << "BLABLABLA\n";
-
-		std::function<void(iso9660_dir_entry_cache*)> pla = [&](iso9660_dir_entry_cache* de)
-		{
-			con.write_buf(de->pte->name, de->pte->len);
-			con.putc('\n');
-			//con << " -- parent: " << pte->parent << '\n';
-
-//			for(auto& e: de->nodes)
-//			{
-//				pla(e.get());
-//			}
-		};
-
-		pla(&root);
-#endif
+		return nullptr;
 	}
 
 	static bool probe(std::shared_ptr<disk_block_io> device)
@@ -452,6 +456,8 @@ private:
 	std::shared_ptr<iso9660_vol_desc> read_vold_desk(int n) { return read_vold_desk(device, n); }
 
 	std::shared_ptr<disk_block_io> device;
+	std::shared_ptr<iso9660_vol_desc_primary> prim;
+	//iso9660_vol_desc_primary* prim = nullptr;
 };
 
 void iso9660_test()
@@ -464,7 +470,6 @@ void iso9660_test()
 	{
 		iso9660 cdrom(hda);
 	}
-
 }
 
 void k_test_init()
@@ -706,6 +711,8 @@ void kmain()
 	mallocator::test();
 
 	//pic_sys.disable(0x20);
+//	for (;;)
+//		qemu_out_char('1');
 	tmr = new timer();
 
 	kbd_init();

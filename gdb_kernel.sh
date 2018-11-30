@@ -15,6 +15,9 @@ file kernel/kernel.elf
 set arch i386:x86-64
 layout reg
 target remote localhost:1234
+show disassemble-next-line
+set disassemble-next-line on
+show disassemble-next-line
 __EOF__
 
 cat << __EOF__ > .gdbtemp/kernelkill
