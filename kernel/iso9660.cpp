@@ -148,7 +148,16 @@ bool iso9660::test_name(iso9660_dir_entry* de, int idx, const char* name, size_t
 	if (idx == 1 && strncmp(name, "..", name_len) == 0)
 		return true;
 
-	return name_len == de->file_id_len && memcmp(name, de->file_id, de->file_id_len) == 0;
+	if (de->file_flags & 2) // Subdirectory
+		return name_len == de->file_id_len && memcmp(name, de->file_id, name_len) == 0;
+	else
+	{
+		auto n = index(de->file_id, ';');
+		assert(n);
+		size_t new_len = n - de->file_id;
+
+		return new_len == name_len && memcmp(name, de->file_id, new_len) == 0;
+	}
 }
 
 std::shared_ptr<iso9660_vol_desc> iso9660::read_vold_desk(std::shared_ptr<disk_block_io> device, int n)

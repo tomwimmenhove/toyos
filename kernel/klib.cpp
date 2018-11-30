@@ -122,6 +122,21 @@ char *strdup(const char *s)
 	return r;
 }
 
+char *index(const char *s, int c)
+{
+	while (*s)
+	{
+		if (*s == c)
+			return (char*) s;
+		s++;
+	}
+
+	if (c == 0)
+		return (char*) s;
+
+	return nullptr;
+}
+
 void __cxa_pure_virtual()
 {
 	panic("Virtual method called");

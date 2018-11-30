@@ -83,7 +83,8 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	syscall(12);
 
 	/* Open a file on the cd */
-	auto cd_fd = open("boot/../bla/othefile.txt;1");
+	auto cd_fd = open("boot/../bla/othefile.txt");
+	ucon << "cd_fd: " << cd_fd << '\n';
 	auto len = read(cd_fd, (void*) ata_buf1, sizeof(ata_buf1));
 
 	ucon.write_buf((const char*) ata_buf1, len);
@@ -329,6 +330,14 @@ int add_handle(std::shared_ptr<io_handle> handle)
 	return (size_t) fd;;
 }
 
+int kopen(const char* arg0)
+{
+	auto handle = cd->open(arg0);
+	if (!handle)
+		return -1;
+	return add_handle(handle);
+}
+
 int kopen(int arg0, int arg1)
 {
 	auto handle = devs.open(arg0, arg1);
@@ -425,7 +434,7 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 			return 0;
 
 		case 0x0d:
-			return add_handle(cd->open((const char*) arg0));
+			return (size_t) kopen((const char*) arg0);
 
 		case 0x10:
 			return (size_t) kopen(arg0, arg1);
