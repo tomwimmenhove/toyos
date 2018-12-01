@@ -11,6 +11,8 @@ struct io_tty : public io_handle
 {   
 	size_t read(void* buf, size_t len) override;
 	size_t write(void* buf, size_t len) override;
+	size_t seek(size_t) override { return -1; }
+
 	bool close() override { return true; }
 };
 

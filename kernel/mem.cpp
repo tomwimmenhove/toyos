@@ -7,6 +7,7 @@
 #include "debug.h"
 #include "config.h"
 #include "linker.h"
+#include "task.h"
 
 frame_alloc_iface* memory::frame_alloc;
 
@@ -155,10 +156,6 @@ void memory::map_page(uint64_t virt, uint64_t phys)
 {
 	assert((virt & (PAGE_SIZE - 1)) == 0);
 	assert((phys & (PAGE_SIZE - 1)) == 0);
-//	virt &= ~(PAGE_SIZE - 1);
-//	phys &= ~(PAGE_SIZE - 1);
-
-//	con << "Mapping virtual page 0x" << hex_u64(virt) << " to phys 0x" << hex_u64(phys) << '\n';
 
 	uint64_t pml4e = (virt >> 39) & 511;
 	uint64_t pdpe = (virt >> 30) & 511;
@@ -240,7 +237,31 @@ uint64_t memory::get_phys(uint64_t virt)
 	return (pt[pte] & ~(PAGE_SIZE - 1)) | (virt & (PAGE_SIZE - 1));
 }
 
-void memory::handle_pg_fault(interrupt_state*, uint64_t)
+extern std::shared_ptr<task> current;
+
+bool memory::handle_pg_fault(interrupt_state*, uint64_t addr)
 {
+	if (!current)
+		return false;
+
+	for (auto& mbi: current->mapped_io_handles)
+	{
+		if (addr >= mbi.addr && addr < mbi.addr + mbi.len)
+		{   
+			/* Align page */
+			addr &= ~(PAGE_SIZE - 1);
+
+			/* Map the page */
+			memory::map_page(addr, memory::frame_alloc->page());
+
+			/* Seek and read the page */
+			mbi.handle->seek(mbi.file_offs + addr - mbi.addr);
+			mbi.handle->read((void*) addr, PAGE_SIZE);
+
+			return true;
+		}
+	}
+
+	return false;
 }
 

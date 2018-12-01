@@ -1,6 +1,9 @@
 #include "iso9660.h"
 #include "debug.h"
 #include "malloc.h"
+#include "spinlock.h"
+#include "req_queue.h"
+#include "semaphore.h"
 
 iso9660_io_handle::iso9660_io_handle(std::shared_ptr<disk_block_io> device, uint32_t start, uint32_t size)
 	: device(device), start(start), pos(0), size(size)
@@ -20,6 +23,16 @@ size_t iso9660_io_handle::read(void* buf, size_t len)
 size_t iso9660_io_handle::write(void*, size_t)
 {
 	return -1;
+}
+
+size_t iso9660_io_handle::seek(size_t p)
+{
+	if (p >= size)
+		return -1;
+
+	pos = p;
+
+	return p;
 }
 
 bool iso9660_io_handle::close()

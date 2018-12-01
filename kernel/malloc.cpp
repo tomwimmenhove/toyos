@@ -130,11 +130,17 @@ void mallocator::free(void* p)
 	}
 }
 
-void mallocator::handle_pg_fault(interrupt_state*, uint64_t addr)
+bool mallocator::handle_pg_fault(interrupt_state*, uint64_t addr)
 {
 	/* Map the page if it's our's */
 	if (addr >= virt_start && addr < virt_start + max_size)
+	{
 		memory::map_page(addr & ~(PAGE_SIZE - 1), memory::frame_alloc->page());
+
+		return true;
+	}
+
+	return false;
 }
 
 void mallocator::test()

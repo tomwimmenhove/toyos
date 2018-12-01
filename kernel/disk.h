@@ -2,11 +2,6 @@
 #define DISK_H
 
 #include <stdint.h>
-#include <assert.h>
-
-#include "spinlock.h"
-#include "req_queue.h"
-#include "semaphore.h"
 
 struct disk_block_io
 {

@@ -3,15 +3,13 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <memory>
+
 #include "interrupts.h"
-
-extern "C"
-{
-	#include "../common/config.h"
-}
-
+#include "config.h"
 #include "debug.h"
 #include "sysregs.h"
+#include "dev.h"
 
 class frame_alloc_iface;
 class frame_alloc_bitmap;
@@ -26,7 +24,7 @@ public:
 	static void map_page(uint64_t virt, uint64_t phys);
 	static uint64_t get_phys(uint64_t virt);
 
-	static void handle_pg_fault(interrupt_state* state, uint64_t addr);
+	static bool handle_pg_fault(interrupt_state* state, uint64_t addr);
 
 	static frame_alloc_iface* frame_alloc;
 private:
@@ -35,6 +33,15 @@ private:
 
 	static inline frame_alloc_bitmap* get_bitmap() { return reinterpret_cast<frame_alloc_bitmap*>(frame_alloc); }
 	static void clear_page(void* page);
+};
+
+struct mapped_io_handle
+{   
+	std::shared_ptr<io_handle> handle;
+	uint64_t file_offs;
+
+	uint64_t addr;
+	uint64_t len;
 };
 
 template<typename T>

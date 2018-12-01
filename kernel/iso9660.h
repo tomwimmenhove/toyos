@@ -4,6 +4,7 @@
 #include <memory>
 #include <stdint.h>
 #include <stddef.h>
+#include <vector>
 
 #include "dev.h"
 #include "disk.h"
@@ -101,6 +102,7 @@ struct iso9660_io_handle : public io_handle
 	
 	size_t read(void* buf, size_t len) override;
 	size_t write(void*, size_t) override;
+	size_t seek(size_t pos) override;
 	bool close() override;
 
 private:

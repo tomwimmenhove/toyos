@@ -41,7 +41,7 @@ void dead_task()
 uint64_t jiffies = 0;
 
 std::shared_ptr<task> tasks;
-std::shared_ptr<task> current;
+std::shared_ptr<task> current;;
 
 std::shared_ptr<task> task_idle;
 
@@ -87,6 +87,9 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	ucon << "cd_fd: " << cd_fd << '\n';
 	auto len = read(cd_fd, (void*) ata_buf1, sizeof(ata_buf1));
 
+	fmap(cd_fd, 0, 0x1000, len);
+
+	ucon.write_buf((const char*) 0x1000, len);
 	ucon.write_buf((const char*) ata_buf1, len);
 
 	//syscall(9, (uint64_t) ata_buf1, 0, 10);
@@ -381,6 +384,17 @@ size_t kwrite(int fd, void *buf, size_t len)
 	return handle->write(buf, len);
 }
 
+size_t kfmap(int fd, uint64_t file_offs, uint64_t addr, uint64_t len)
+{
+	if ((size_t) fd >= current->io_handles.size() || !current->io_handles[fd])
+		return -1;
+
+	mapped_io_handle mih { current->io_handles[fd], file_offs, addr, len };
+	current->mapped_io_handles.push_back(mih);
+
+	return 0;
+}
+
 extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)
 {
 	auto now = jiffies;
@@ -444,6 +458,9 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 			return (size_t) kread(arg0, (void*) arg1, arg2);
 		case 0x14:
 			return (size_t) kwrite(arg0, (void*) arg1, arg2);
+
+		case 0x15:
+			return kfmap(arg0, arg1, arg2, arg3);
 		default:
 			panic("Invalid system call");
 	}
