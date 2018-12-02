@@ -27,6 +27,7 @@
 #include "spinlock.h"
 #include "semaphore.h"
 #include "iso9660.h"
+#include "elf.h"
 
 void print_stack_use()
 {
@@ -65,97 +66,6 @@ void test()
 	devs.add(drv_kbd);
 }
 
-struct elf64
-{
-	elf64(int fd)
-		: fd(fd)
-	{ }
-
-	bool load_headers()
-	{
-		console_user ucon(0);
-
-		seek(fd, 0);
-
-		if (read(fd, (void*) &ehdr, sizeof(ehdr)) == -1)
-			return false;
-
-		ucon << "entry: " << hex_u64(ehdr.e_entry) << '\n';
-
-		for (int i = 0; i < ehdr.e_phnum; i++)
-		{
-			elf64_phdr phdr;
-
-			if (read(fd, (void*) &phdr, sizeof(phdr)) == -1)
-				return false;
-
-			switch(phdr.p_type)
-			{
-				case 0: /* Unised */
-					break;
-				case 1: /* Loadable segment */
-					ucon << "Loadable segment. vaddr: " << hex_u64(phdr.p_vaddr)
-						 << ", offset: " << hex_u64(phdr.p_offset) 
-						 << ", file size: " << hex_u64(phdr.p_filesz)
-						 << ", mem size: " << hex_u64(phdr.p_memsz)
-						 << '\n';
-					
-					if (fmap(fd,
-								phdr.p_offset & ~(PAGE_SIZE - 1),
-								phdr.p_vaddr & ~(PAGE_SIZE - 1),
-								phdr.p_filesz + (phdr.p_offset & (PAGE_SIZE - 1))) == -1)
-						return -1;
-
-					break;
-				case 2: /* Dynamic linking tables */
-					break;
-				case 3: /* Program interpreter path name\ */
-					break;
-				case 4: /* Note sections */
-					break;
-				default: /* Unknown. Ignored */
-					break;
-			}
-		}
-		return true;
-	}
-
-	struct __attribute__((packed)) elf64_ehdr
-	{   
-		unsigned char e_ident[16]; /* ELF identification */
-		uint16_t e_type; /* Object file type */
-		uint16_t e_machine; /* Machine type */
-		uint32_t e_version; /* Object file version */
-		uint64_t e_entry; /* Entry point address */
-		uint64_t e_phoff; /* Program header offset */
-		uint64_t e_shoff; /* Section header offset */
-		uint32_t e_flags; /* Processor-specific flags */
-		uint16_t e_ehsize; /* ELF header size */
-		uint16_t e_phentsize; /* Size of program header entry */
-		uint16_t e_phnum; /* Number of program header entries */
-		uint16_t e_shentsize; /* Size of section header entry */
-		uint16_t e_shnum; /* Number of section header entries */
-		uint16_t e_shstrndx; /* Section name string table index */
-	};
-
-	struct __attribute__((packed)) elf64_phdr
-	{   
-		uint32_t p_type; /* Type of segment */
-		uint32_t p_flags; /* Segment attributes */
-		uint64_t p_offset; /* Offset in file */
-		uint64_t p_vaddr; /* Virtual address in memory */
-		uint64_t p_paddr; /* Reserved */
-		uint64_t p_filesz; /* Size of segment in file */
-		uint64_t p_memsz; /* Size of segment in memory */
-		uint64_t p_align; /* Alignment of segment */
-	};
-
-	elf64_ehdr ehdr;
-
-private:
-	int fd;
-};
-
 uint8_t ata_buf1[128 * 1024];
 extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 {
@@ -173,7 +83,7 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	ucon << "cd_fd: " << cd_fd << '\n';
 	auto len = read(cd_fd, (void*) ata_buf1, sizeof(ata_buf1));
 
-	auto elf_fd = open("test/bla.");
+	auto elf_fd = open("test/userbin.");
 	ucon << "elf_fd: " << elf_fd << '\n';
 	size_t elf_size = fsize(elf_fd);
 
@@ -185,7 +95,11 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 
 	elf64 e(elf_fd);
 	if (!e.load_headers())
-		panic("Loading elf failed");
+	{
+		ucon << "Loading elf failed\n";
+		for (;;)
+			;
+	}
 
 	ucon << "e_entry: " << hex_u64(e.ehdr.e_entry) << '\n';
 	

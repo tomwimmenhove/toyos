@@ -3,7 +3,7 @@ $(shell mkdir -p $(DEPDIR) >/dev/null)
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 POSTCOMPILE = @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
-HACKFLAGS = -fno-threadsafe-statics # Until we implement the save guards
+HACKFLAGS = -fno-threadsafe-statics # Until we implement the safe guards
 DEBUGFLAGS = -ggdb -DDEBUG -fstack-protector-all
 PRIMALFLAGS = -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -msoft-float
 INCLUDEDIRS = -I ../common -I ../newlib/c++/4.9.3/ -I ../newlib/ -I ../embxx/
@@ -15,14 +15,14 @@ LDFLAGS = crti.o $(shell $(CC) $(CFLAGS) -print-file-name=crtbegin.o) \
 
 CC = x86_64-elf-gcc
 CPP = x86_64-elf-g++
-AS = x86_64-elf-gcc # Handles defines through the cpp pre-processor, as does not.
+AS = x86_64-elf-gcc # Handles defines through the cpp pre-processor, gas does not.
 LD = x86_64-elf-ld
 
 all: kernel.elf
 
 IOBJS = crti.o crtn.o
-OBJS = debug.o   kernel.o mem.o   malloc.o   frame_alloc.o gdt.o   idt.o   interrupts.o   pic.o   console.o   syscall.o interrupt_jump.o new.o   task_helper.o klib.o   start.o   dev.o   kbd.o   ata_pio.o   iso9660.o
-SRCS = debug.cpp kernel.o mem.cpp malloc.cpp frame_alloc.o gdt.cpp idt.cpp interrupts.cpp pic.cpp console.cpp syscall.S interrupt_jump.S new.cpp task_helper.S klib.cpp start.cpp dev.cpp kbd.cpp ata_pio.cpp iso9660.cpp
+OBJS = debug.o   kernel.o mem.o   malloc.o   frame_alloc.o gdt.o   idt.o   interrupts.o   pic.o   console.o   syscall.o interrupt_jump.o new.o   task_helper.o klib.o   start.o   dev.o   kbd.o   ata_pio.o   iso9660.o   elf.o
+SRCS = debug.cpp kernel.o mem.cpp malloc.cpp frame_alloc.o gdt.cpp idt.cpp interrupts.cpp pic.cpp console.cpp syscall.S interrupt_jump.S new.cpp task_helper.S klib.cpp start.cpp dev.cpp kbd.cpp ata_pio.cpp iso9660.cpp elf.cpp
 
 start.o: start.cpp
 	$(CPP) $(CPPFLAGS) $(PRIMALFLAGS) -c start.cpp

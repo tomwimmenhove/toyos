@@ -256,7 +256,14 @@ bool memory::handle_pg_fault(interrupt_state*, uint64_t addr)
 
 			/* Seek and read the page */
 			mbi.handle->seek(mbi.file_offs + addr - mbi.addr);
-			mbi.handle->read((void*) addr, PAGE_SIZE);
+			ssize_t r = mbi.handle->read((void*) addr, PAGE_SIZE);
+
+			if (r == -1)
+				con << "read() in memory::handle_pg_fault returned -1\n";
+			else
+				if (r < PAGE_SIZE) /* Pad ? */
+					for (auto i = r; i < PAGE_SIZE; i++)
+						*((uint8_t*) addr + i) = 0;
 
 			return true;
 		}

@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+#include "syscall.h"
+
 extern "C"
 {
 	inline int close(int arg0) { return (bool) syscall(0x11, arg0); }

@@ -1,6 +1,7 @@
 all:
 	make -j8 -C kernel
 	make -j8 -C multiboot
+	make -j8 -C fs/test
 	rm -f image.iso
 	make image.iso
 
@@ -28,4 +29,5 @@ clean:
 	rm -rf *.o image.iso iso
 	make -C multiboot clean
 	make -C kernel clean
+	make -C fs/test clean
 
