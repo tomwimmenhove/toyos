@@ -19,7 +19,7 @@ inline int open(const char* name) { return (int) syscall(0x0d, (uint64_t) name);
 inline size_t fsize(int fd) { return syscall(0x16, fd); }
 inline size_t seek(int fd, size_t pos) { return syscall(0x17, fd, pos); }
 
-inline size_t fmap(int fd, uint64_t file_offs, uint64_t addr, uint64_t len)
+inline ssize_t fmap(int fd, uint64_t file_offs, uint64_t addr, uint64_t len)
 {
 	return syscall(0x15, fd, file_offs, addr, len);
 }

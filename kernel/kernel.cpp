@@ -73,12 +73,50 @@ struct elf64
 
 	bool load_headers()
 	{
+		console_user ucon(0);
+
 		seek(fd, 0);
 
-		auto r = read(fd, (void*) &ehdr, sizeof(ehdr));
-		if (r == -1)
+		if (read(fd, (void*) &ehdr, sizeof(ehdr)) == -1)
 			return false;
 
+		ucon << "entry: " << hex_u64(ehdr.e_entry) << '\n';
+
+		for (int i = 0; i < ehdr.e_phnum; i++)
+		{
+			elf64_phdr phdr;
+
+			if (read(fd, (void*) &phdr, sizeof(phdr)) == -1)
+				return false;
+
+			switch(phdr.p_type)
+			{
+				case 0: /* Unised */
+					break;
+				case 1: /* Loadable segment */
+					ucon << "Loadable segment. vaddr: " << hex_u64(phdr.p_vaddr)
+						 << ", offset: " << hex_u64(phdr.p_offset) 
+						 << ", file size: " << hex_u64(phdr.p_filesz)
+						 << ", mem size: " << hex_u64(phdr.p_memsz)
+						 << '\n';
+					
+					if (fmap(fd,
+								phdr.p_offset & ~(PAGE_SIZE - 1),
+								phdr.p_vaddr & ~(PAGE_SIZE - 1),
+								phdr.p_filesz + (phdr.p_offset & (PAGE_SIZE - 1))) == -1)
+						return -1;
+
+					break;
+				case 2: /* Dynamic linking tables */
+					break;
+				case 3: /* Program interpreter path name\ */
+					break;
+				case 4: /* Note sections */
+					break;
+				default: /* Unknown. Ignored */
+					break;
+			}
+		}
 		return true;
 	}
 
@@ -113,6 +151,8 @@ struct elf64
 	};
 
 	elf64_ehdr ehdr;
+
+private:
 	int fd;
 };
 
@@ -143,37 +183,29 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 
 	//ucon.write_buf((const char*) 0x1000, len);
 
-	ucon << "test hex: " << hex_u32(*(uint32_t*) (0x1000 + 0x1ff1)) << '\n';
-
 	elf64 e(elf_fd);
-	e.load_headers();
+	if (!e.load_headers())
+		panic("Loading elf failed");
 
 	ucon << "e_entry: " << hex_u64(e.ehdr.e_entry) << '\n';
+	
+	/* Jump to the motherfucker */
+	typedef int (*elf_entry_fn)();
+	elf_entry_fn elf_entry = (elf_entry_fn) e.ehdr.e_entry;
+	int returned = elf_entry();
 
-	ucon.write_buf((const char*) e.ehdr.e_ident, 16);
+	ucon << "It returned: " << returned << '\n';
 
 	ucon.write_buf((const char*) ata_buf1, len);
-
-	//syscall(9, (uint64_t) ata_buf1, 0, 10);
-
-//	syscall(10, (uint64_t) ata_buf, 0, 1);
-	
-//	for (int i = 0; i < 512; i++)
-//		ucon << hex_u8(ata_buf[i]) << "  ";
 
 	uint8_t abuf[512];
 	
 	syscall(10, (uint64_t) abuf, 0x180, 6);
 	ucon << "partial: \"" << (const char*) abuf << "\"\n";
 
-//	syscall(10, (uint64_t) abuf, 0x180, 6);
-//	ucon << "partial: \"" << (const char*) abuf << "\"\n";
-
 	/* Test partial write */
 	abuf[0] = 42;
 	syscall(11, (uint64_t) abuf, 2, 1);
-
-	
 	syscall(10, (uint64_t) ata_buf1, 0, 512);
 
 	for (;;)
@@ -185,10 +217,6 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 			ucon << "1: ATA FUCKED UP\n";
 			asm volatile("hlt"); // Cause crash
 		}
-
-	//	ucon << "1: " << hex_u8(ata_buf1[511]);
-		//ucon << "1";
-		//syscall(7);
 	}
 }
 
