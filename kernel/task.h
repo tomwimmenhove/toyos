@@ -75,7 +75,7 @@ struct task
 	embxx::util::StaticFunction<bool()> wait_for;
 	
 	std::vector<std::shared_ptr<io_handle>> io_handles;
-	std::vector<mapped_io_handle> mapped_io_handles;
+	std::forward_list<mapped_io_handle> mapped_io_handles;
 
 	std::shared_ptr<task> next;
 

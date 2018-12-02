@@ -65,9 +65,55 @@ void test()
 	devs.add(drv_kbd);
 }
 
-struct tst
+struct elf64
 {
-	char data[512];
+	elf64(int fd)
+		: fd(fd)
+	{ }
+
+	bool load_headers()
+	{
+		seek(fd, 0);
+
+		auto r = read(fd, (void*) &ehdr, sizeof(ehdr));
+		if (r == -1)
+			return false;
+
+		return true;
+	}
+
+	struct __attribute__((packed)) elf64_ehdr
+	{   
+		unsigned char e_ident[16]; /* ELF identification */
+		uint16_t e_type; /* Object file type */
+		uint16_t e_machine; /* Machine type */
+		uint32_t e_version; /* Object file version */
+		uint64_t e_entry; /* Entry point address */
+		uint64_t e_phoff; /* Program header offset */
+		uint64_t e_shoff; /* Section header offset */
+		uint32_t e_flags; /* Processor-specific flags */
+		uint16_t e_ehsize; /* ELF header size */
+		uint16_t e_phentsize; /* Size of program header entry */
+		uint16_t e_phnum; /* Number of program header entries */
+		uint16_t e_shentsize; /* Size of section header entry */
+		uint16_t e_shnum; /* Number of section header entries */
+		uint16_t e_shstrndx; /* Section name string table index */
+	};
+
+	struct __attribute__((packed)) elf64_phdr
+	{   
+		uint32_t p_type; /* Type of segment */
+		uint32_t p_flags; /* Segment attributes */
+		uint64_t p_offset; /* Offset in file */
+		uint64_t p_vaddr; /* Virtual address in memory */
+		uint64_t p_paddr; /* Reserved */
+		uint64_t p_filesz; /* Size of segment in file */
+		uint64_t p_memsz; /* Size of segment in memory */
+		uint64_t p_align; /* Alignment of segment */
+	};
+
+	elf64_ehdr ehdr;
+	int fd;
 };
 
 uint8_t ata_buf1[128 * 1024];
@@ -87,9 +133,25 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	ucon << "cd_fd: " << cd_fd << '\n';
 	auto len = read(cd_fd, (void*) ata_buf1, sizeof(ata_buf1));
 
-	fmap(cd_fd, 0, 0x1000, len);
+	auto elf_fd = open("test/bla.");
+	ucon << "elf_fd: " << elf_fd << '\n';
+	size_t elf_size = fsize(elf_fd);
 
-	ucon.write_buf((const char*) 0x1000, len);
+	ucon << "file size: " << elf_size << '\n';
+
+	fmap(elf_fd, 0, 0x1000, elf_size);
+
+	//ucon.write_buf((const char*) 0x1000, len);
+
+	ucon << "test hex: " << hex_u32(*(uint32_t*) (0x1000 + 0x1ff1)) << '\n';
+
+	elf64 e(elf_fd);
+	e.load_headers();
+
+	ucon << "e_entry: " << hex_u64(e.ehdr.e_entry) << '\n';
+
+	ucon.write_buf((const char*) e.ehdr.e_ident, 16);
+
 	ucon.write_buf((const char*) ata_buf1, len);
 
 	//syscall(9, (uint64_t) ata_buf1, 0, 10);
@@ -161,7 +223,7 @@ void k_test_user2(uint64_t arg0, uint64_t arg1)
 		/* Read syscall:   sysc  fd  buffer          size */
 		auto len = read(fd, (void*) buf, sizeof(buf));
 
-		for (size_t i = 0; i < len; i++)
+		for (ssize_t i = 0; i < len; i++)
 			ucon << buf[i];
 //			ucon << '(' << buf[i] << "): " << ((char) buf[i]) << '\n';
 	}
@@ -384,13 +446,29 @@ size_t kwrite(int fd, void *buf, size_t len)
 	return handle->write(buf, len);
 }
 
+size_t kfsize(int fd)
+{
+	if ((size_t) fd >= current->io_handles.size() || !current->io_handles[fd])
+		return -1;
+
+	return current->io_handles[fd]->size();
+}
+
+size_t kseek(int fd, size_t pos)
+{
+	if ((size_t) fd >= current->io_handles.size() || !current->io_handles[fd])
+		return -1;
+
+	return current->io_handles[fd]->seek(pos);
+}
+
 size_t kfmap(int fd, uint64_t file_offs, uint64_t addr, uint64_t len)
 {
 	if ((size_t) fd >= current->io_handles.size() || !current->io_handles[fd])
 		return -1;
 
 	mapped_io_handle mih { current->io_handles[fd], file_offs, addr, len };
-	current->mapped_io_handles.push_back(mih);
+	current->mapped_io_handles.push_front(mih);
 
 	return 0;
 }
@@ -448,16 +526,19 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 			return 0;
 
 		case 0x0d:
-			return (size_t) kopen((const char*) arg0);
-
+			return kopen((const char*) arg0);
 		case 0x10:
-			return (size_t) kopen(arg0, arg1);
+			return kopen(arg0, arg1);
 		case 0x11:
-			return (size_t) kclose(arg0);
+			return kclose(arg0);
 		case 0x13:
-			return (size_t) kread(arg0, (void*) arg1, arg2);
+			return kread(arg0, (void*) arg1, arg2);
 		case 0x14:
-			return (size_t) kwrite(arg0, (void*) arg1, arg2);
+			return kwrite(arg0, (void*) arg1, arg2);
+		case 0x17:
+			return kseek(arg0, arg1);
+		case 0x16:
+			return kfsize(arg0);
 
 		case 0x15:
 			return kfmap(arg0, arg1, arg2, arg3);

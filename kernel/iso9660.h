@@ -100,9 +100,10 @@ struct iso9660_io_handle : public io_handle
 {
 	iso9660_io_handle(std::shared_ptr<disk_block_io> device, uint32_t start, uint32_t size);
 	
-	size_t read(void* buf, size_t len) override;
-	size_t write(void*, size_t) override;
+	ssize_t read(void* buf, size_t len) override;
+	ssize_t write(void*, size_t) override;
 	size_t seek(size_t pos) override;
+	inline size_t size() override { return fsize; }
 	bool close() override;
 
 private:
@@ -110,7 +111,7 @@ private:
 
 	uint32_t start;
 	uint32_t pos;
-	uint32_t size;
+	uint32_t fsize;
 };
 
 struct iso9660

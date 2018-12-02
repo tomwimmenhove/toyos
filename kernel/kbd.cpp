@@ -11,7 +11,7 @@ extern std::shared_ptr<task> current;
 
 static embxx::container::StaticQueue<uint8_t, 4096> key_queue;
 
-size_t io_tty::read(void* buf, size_t len)
+ssize_t io_tty::read(void* buf, size_t len)
 {   
 	current->wait_for = []() { return key_queue.size() != 0; };
 
@@ -45,7 +45,7 @@ size_t io_tty::read(void* buf, size_t len)
 	return t;
 }
 
-size_t io_tty::write(void* buf, size_t len)
+ssize_t io_tty::write(void* buf, size_t len)
 {   
 	con.write_buf((const char*) buf, len);
 

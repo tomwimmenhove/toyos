@@ -9,9 +9,10 @@
 
 struct io_tty : public io_handle
 {   
-	size_t read(void* buf, size_t len) override;
-	size_t write(void* buf, size_t len) override;
+	ssize_t read(void* buf, size_t len) override;
+	ssize_t write(void* buf, size_t len) override;
 	size_t seek(size_t) override { return -1; }
+	size_t size() override { return 0; }
 
 	bool close() override { return true; }
 };
