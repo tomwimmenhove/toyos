@@ -139,7 +139,8 @@ bool mallocator::handle_pg_fault(interrupt_state* state, uint64_t addr)
 	/* Map the page if it's our's */
 	if (addr >= virt_start && addr < virt_start + max_size)
 	{
-		memory::map_page(addr & ~(PAGE_SIZE - 1), memory::frame_alloc->page());
+		int flags = 0x106;//addr > 0x8000000000000000 ? 0x102 : 0x106;
+		memory::map_page(addr & ~(PAGE_SIZE - 1), memory::frame_alloc->page(), flags);
 
 		return true;
 	}

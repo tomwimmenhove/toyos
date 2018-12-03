@@ -84,7 +84,7 @@ void _start(kernel_boot_info* kbi)
 
 	/* Map vide text buffer into memory */
 	uint64_t video_base = 0xffffffff40000000 - 0x1000;
-	memory::map_page(video_base, 0xb8000);
+	memory::map_page(video_base, 0xb8000, 0x103);
 	con.base = (uint8_t*) video_base;
 
 	con << "Video ram remapped\n";

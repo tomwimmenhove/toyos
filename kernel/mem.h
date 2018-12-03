@@ -21,7 +21,7 @@ public:
 	static void unmap_unused();
 	static uint64_t is_mapped(uint64_t virt);
 	static void unmap_page(uint64_t virt);
-	static void map_page(uint64_t virt, uint64_t phys, unsigned int flags = 0);
+	static void map_page(uint64_t virt, uint64_t phys, unsigned int flags);
 	static uint64_t get_phys(uint64_t virt);
 
 	static inline void invlpg(uint64_t virt) { asm volatile("invlpg (%0)" ::"r" (virt) : "memory"); }
@@ -54,7 +54,7 @@ public:
 	temp_page(uint64_t virt, uint64_t phys, bool clean = false)
 		: virt((T*) virt)
 	{
-		memory::map_page((uint64_t) virt, phys);
+		memory::map_page((uint64_t) virt, phys, 0x102);
 		if (clean)
 			for (int i = 0; i < 256; i++)
 				((uint64_t*) virt)[i] = 0;

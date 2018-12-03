@@ -73,7 +73,7 @@ void memory::init(kernel_boot_info* kbi)
 			panic("Ran out of memory for storing physical memory page frame_alloc_bitmap");
 		}
 
-		map_page((uint64_t) p, (uint64_t) pg);
+		map_page((uint64_t) p, (uint64_t) pg, 0x102);
 		p += PAGE_SIZE;
 		allocced += PAGE_SIZE;
 	}
@@ -140,7 +140,7 @@ void memory::setup_usage(multiboot_tag_mmap* mb_mmap_tag, uint64_t memtop)
 	clean_page_tables();
 }
 
-void memory::map_page(uint64_t virt, uint64_t phys, unsigned int)
+void memory::map_page(uint64_t virt, uint64_t phys, unsigned int flags)
 {
 	assert((virt & (PAGE_SIZE - 1)) == 0);
 	assert((phys & (PAGE_SIZE - 1)) == 0);
@@ -173,7 +173,7 @@ void memory::map_page(uint64_t virt, uint64_t phys, unsigned int)
 		clear_page((void*) pt);
 	}
 
-	pt[pte] = phys | 0x107;
+	pt[pte] = phys | 1 | flags;
 
 	invlpg(virt);
 }
@@ -304,7 +304,7 @@ bool memory::handle_pg_fault(interrupt_state* state, uint64_t addr)
 			addr &= ~(PAGE_SIZE - 1);
 
 			/* Map the page */
-			memory::map_page(addr, memory::frame_alloc->page());
+			memory::map_page(addr, memory::frame_alloc->page(), 0x106);
 
 			/* Seek and read the page */
 			mbi.handle->seek(mbi.file_offs + addr - mbi.addr);
