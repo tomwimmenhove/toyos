@@ -72,7 +72,7 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	int fd = open(0, 0);
 	console_user ucon(fd);
 
-	syscall(33);
+//	syscall(33);
 
     ucon << "tsk 1: arg0: " << arg0 << '\n';
 	ucon << "tsk 1: arg1: " << arg1 << '\n';
@@ -107,6 +107,19 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	syscall(11, (uint64_t) abuf, 2, 1);
 	syscall(10, (uint64_t) ata_buf1, 0, 512);
 
+	volatile uint64_t* volatile stack_tst = (uint64_t*) (0x800000000000 - 16);
+	*stack_tst = 0;
+	uint64_t countah = 0;
+
+	if (0) for (;;)
+	{
+		(*stack_tst)++;
+		countah++;
+
+		if (countah != (*stack_tst))
+			ucon << "1: Per-process stack is fucked\n";
+	}
+
 	for (;;)
 	{
 		syscall(10, (uint64_t) abuf, 0, 512);
@@ -116,6 +129,15 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 			ucon << "1: ATA FUCKED UP\n";
 			asm volatile("hlt"); // Cause crash
 		}
+		
+//		ucon << "inc==" << hex_u64(*stack_tst) << '\n';
+		(*stack_tst)++;
+		countah++;
+
+		auto t = *stack_tst;
+
+		if (countah != t)
+			ucon << "1: Per-process stack is fucked: " << hex_u64(t) << '\n';
 	}
 }
 
@@ -131,6 +153,15 @@ void k_test_user2(uint64_t arg0, uint64_t arg1)
 
 	//uint8_t abuf[512];
 	//syscall(10, (uint64_t) abuf, 0x8000, 512);
+
+	volatile uint64_t* volatile stack_tst = (uint64_t*) (0x800000000000 - 16);
+	*stack_tst = 42;
+
+	if (0) for (;;)
+	{
+		if (42 != (*stack_tst))
+			ucon << "2: Per-process stack is fucked\n";
+	}
 
 	char buf[100];
 	for (;;)
@@ -149,6 +180,13 @@ void k_test_user2(uint64_t arg0, uint64_t arg1)
 #endif
 		/* Read syscall:   sysc  fd  buffer          size */
 		auto len = read(fd, (void*) buf, sizeof(buf));
+
+		//ucon << "42==" << hex_u64(*stack_tst) << '\n';
+
+		volatile uint64_t  t = *stack_tst;
+		
+		if (42 != t)
+			ucon << "2: Per-process stack is fucked: " << hex_u64(t) << '\n';
 
 		for (ssize_t i = 0; i < len; i++)
 			ucon << buf[i];
@@ -192,6 +230,7 @@ void schedule()
 	tss0.rsp0 = current->tss_rsp;
 
 	/* Switch tasks */
+	cr3_set(current->cr3);
 	state_switch(current->rsp, last->rsp);
 }
 

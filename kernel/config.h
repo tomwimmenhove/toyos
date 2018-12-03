@@ -10,6 +10,8 @@ extern "C"
 
 //#define TASK_SWITCH_SAVE_CALLER_SAVED
 
+#define USER_PS_STACK_SIZE	(1024 * 1024 * 1)
+
 #define KERNEL_CS	0x08
 #define KERNEL_DS	0x10
 

@@ -239,6 +239,13 @@ uint64_t memory::clone_tables()
 		if (i == PG_PML4E)
 			continue;
 
+		/* Kernel-pages are simply copied directly */
+		if (i >= 256)
+		{
+			tmp_pml4[i] = pml4[i];
+			continue;
+		}
+
 		volatile uint64_t* pdp = (uint64_t*) (PG_PDP | (i << 12));
 		for (uint64_t j = 0 ; j < 512; j++) if (pdp[j] & 1)
 		{
@@ -296,6 +303,13 @@ bool memory::handle_pg_fault(interrupt_state* state, uint64_t addr)
 	if (!current)
 		return false;
 
+	/* Stack? */
+	if (addr < 0x800000000000 && addr >= 0x800000000000 - USER_PS_STACK_SIZE)
+	{
+		memory::map_page(addr & ~(PAGE_SIZE - 1), memory::frame_alloc->page(), 6);
+		return true;
+	}
+
 	for (auto& mbi: current->mapped_io_handles)
 	{
 		if (addr >= mbi.addr && addr < mbi.addr + mbi.len)
@@ -304,7 +318,7 @@ bool memory::handle_pg_fault(interrupt_state* state, uint64_t addr)
 			addr &= ~(PAGE_SIZE - 1);
 
 			/* Map the page */
-			memory::map_page(addr, memory::frame_alloc->page(), 0x106);
+			memory::map_page(addr, memory::frame_alloc->page(), 6);
 
 			/* Seek and read the page */
 			mbi.handle->seek(mbi.file_offs + addr - mbi.addr);

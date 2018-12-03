@@ -47,13 +47,14 @@ private:
 struct task
 {
 	task(int id, uint64_t rsp, uint64_t tss_rsp)
-		: id(id), rsp(rsp), tss_rsp(tss_rsp)
+		: id(id), rsp(rsp), tss_rsp(tss_rsp), cr3(cr3_get())
 	{ }
 
 	task(int id, std::unique_ptr<task_stack> tsk_stack, std::unique_ptr<uint8_t[]> k_stack, size_t k_stack_size)
 		: id(id),
 		  rsp((uint64_t) tsk_stack->init_regs), /* rsp at bottom of init_regs, ready to pop. */
 		  tss_rsp((uint64_t) k_stack.get() + k_stack_size), /* tss_rsp at top of kernel stack. */
+		  cr3(memory::clone_tables()),
 		  tsk_stack(std::move(tsk_stack)),
 		  k_stack(std::move(k_stack))
 	{ }
@@ -81,6 +82,8 @@ struct task
 
 	uint64_t rsp;       /* Task's current stack pointer */
 	uint64_t tss_rsp;   /* Kernel stack top */
+
+	uint64_t cr3;
 
 private:
 	std::unique_ptr<task_stack> tsk_stack;
