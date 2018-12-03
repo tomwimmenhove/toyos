@@ -24,6 +24,9 @@ public:
 	static void map_page(uint64_t virt, uint64_t phys);
 	static uint64_t get_phys(uint64_t virt);
 
+	static inline void invlpg(uint64_t virt) { asm volatile("invlpg (%0)" ::"r" (virt) : "memory"); }
+	static uint64_t clone_tables();
+
 	static bool handle_pg_fault(interrupt_state* state, uint64_t addr);
 
 	static frame_alloc_iface* frame_alloc;
@@ -50,7 +53,9 @@ class temp_page
 public: 
 	temp_page(uint64_t virt, uint64_t phys)
 		: virt((T*) virt)
-	{ memory::map_page((uint64_t) virt, phys); }
+	{
+		memory::map_page((uint64_t) virt, phys);
+	}
 
 	~temp_page() { memory::unmap_page((uint64_t) virt); }
 

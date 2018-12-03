@@ -8,7 +8,7 @@ elf64::elf64(int fd)
 	: fd(fd)
 { }
 
-bool elf64::load_headers()
+bool elf64::load()
 {
 	console_user ucon(0);
 

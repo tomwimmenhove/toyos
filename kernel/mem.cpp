@@ -98,31 +98,19 @@ void memory::unmap_unused()
 
 void memory::clean_page_tables()
 {
-	/* A place to temporarily map physical pages to */
-	uint64_t tmp_virt = 0xffff8ffffffff000llu;
-
-	volatile uint64_t* pml4 = (uint64_t*) PG_PML4;
-	for (int i = 0; i < 0x200; i++) if (pml4[i] & 1)
+	volatile uint64_t* pml4 = (uint64_t*) (PG_PML4);
+	for (uint64_t i = 0; i < 512; i++) if (pml4[i] & 1)
 	{
-		temp_page<uint64_t> pdp(tmp_virt, pml4[i] & ~(PAGE_SIZE - 1));
-		for (int j = 0; j < 0x200; j++) if (pdp[j] & 1)
+		volatile uint64_t* pdp = (uint64_t*) (PG_PDP | (i << 12));
+		for (uint64_t j = 0 ; j < 512; j++) if (pdp[j] & 1)
 		{
-			temp_page<uint64_t> pd(tmp_virt + PAGE_SIZE, pdp[j] & ~(PAGE_SIZE - 1));
-			for (int k = 0; k < 0x200; k++) if (pd[k] & 1)
+			volatile uint64_t* pd = (uint64_t*) (PG_PD | ( (i << 21) | (j << 12) ) );
+			for (uint64_t k = 0 ; k < 512; k++) if (pd[k] & 1)
 			{
-				temp_page<uint64_t> pt(tmp_virt + PAGE_SIZE * 2, pd[k] & ~(PAGE_SIZE - 1));
-				for (int l = 0; l < 0x200; l++) if (pt[l] & 1)
-				{
-					uint64_t virt = ((uint64_t) i) << 39 | ((uint64_t) j) << 30 |
-						((uint64_t) k) << 21 | ((uint64_t) l) << 12;
+				volatile uint64_t* pt = (uint64_t*) (PG_PT | ( (i << 30) | (j << 21) | (k << 12) ) );
+				for (uint64_t l = 0; l < 512; l++) if (pt[l] & 1)
 					if (i > 0x100)
-					{
-						/* Mark the ones in the 'higher half' as used */
-						virt |= 0xffff000000000000;
-						if (!(virt >= tmp_virt && virt <= tmp_virt + PAGE_SIZE * 2) )
 							get_bitmap()->set(pt[l] >> 12);
-					}
-				}
 			}
 		}
 	}
@@ -186,6 +174,8 @@ void memory::map_page(uint64_t virt, uint64_t phys)
 	}
 
 	pt[pte] = phys | 7;
+
+	invlpg(virt);
 }
 
 void memory::clear_page(void* page)
@@ -224,7 +214,7 @@ void memory::unmap_page(uint64_t virt)
 
 	pt[pte] = 0;
 
-	asm volatile("invlpg (%0)" ::"r" (virt) : "memory");
+	invlpg(virt);
 }
 
 uint64_t memory::get_phys(uint64_t virt)
@@ -235,6 +225,65 @@ uint64_t memory::get_phys(uint64_t virt)
 	uint64_t pte = virt >> 12;
 
 	return (pt[pte] & ~(PAGE_SIZE - 1)) | (virt & (PAGE_SIZE - 1));
+}
+
+uint64_t memory::clone_tables()
+{
+	uint64_t tmp_virt = 0xffff8ffffffff000llu;
+	uint64_t pml4_new = (uint64_t) frame_alloc->page();
+	temp_page<uint64_t> tmp_pml4(tmp_virt, pml4_new);
+	clear_page((void*) tmp_virt);
+
+	volatile uint64_t* pml4 = (uint64_t*) (PG_PML4);
+	for (uint64_t i = 0; i < 512; i++) if (pml4[i] & 1)
+	//for (uint64_t i = 0; i < 256; i++) if (pml4[i] & 1)
+	{
+		volatile uint64_t* pdp = (uint64_t*) (PG_PDP | (i << 12));
+		for (uint64_t j = 0 ; j < 512; j++) if (pdp[j] & 1)
+		{
+			volatile uint64_t* pd = (uint64_t*) (PG_PD | ( (i << 21) | (j << 12) ) );
+			for (uint64_t k = 0 ; k < 512; k++) if (pd[k] & 1)
+			{
+				volatile uint64_t* pt = (uint64_t*) (PG_PT | ( (i << 30) | (j << 21) | (k << 12) ) );
+				for (uint64_t l = 0; l < 512; l++) if (pt[l] & 1)
+				{
+					if (!(tmp_pml4[i] & 1))
+					{
+						uint64_t new_pg = (uint64_t) frame_alloc->page();
+						temp_page<uint64_t> tmp(tmp_virt + PAGE_SIZE * 1, new_pg);
+						clear_page((void*) (tmp_virt + PAGE_SIZE * 1));
+						tmp_pml4[i] = new_pg | 7;
+					}
+
+					temp_page<uint64_t> tmp_pdp(tmp_virt + PAGE_SIZE * 1, tmp_pml4[i] & ~(PAGE_SIZE - 1));
+					if (!(tmp_pdp[j] & 1))
+					{
+						uint64_t new_pg = (uint64_t) frame_alloc->page();
+						temp_page<uint64_t> tmp(tmp_virt + PAGE_SIZE * 2, new_pg);
+						clear_page((void*) (tmp_virt + PAGE_SIZE * 2));
+						tmp_pdp[j] = new_pg | 7;
+					}
+
+					temp_page<uint64_t> tmp_pd(tmp_virt + PAGE_SIZE * 2, tmp_pdp[j] & ~(PAGE_SIZE - 1));
+					if (!(tmp_pd[k] & 1))
+					{
+						uint64_t new_pg = (uint64_t) frame_alloc->page();
+						temp_page<uint64_t> tmp(tmp_virt + PAGE_SIZE * 3, new_pg);
+						clear_page((void*) (tmp_virt + PAGE_SIZE * 3));
+						tmp_pd[k] = new_pg | 7;
+					}
+
+					temp_page<uint64_t> tmp_pt(tmp_virt + PAGE_SIZE * 3, tmp_pd[k] & ~(PAGE_SIZE - 1));
+					tmp_pt[l] = pt[l];
+				}
+			}
+		}
+	}
+
+	/* Make the new page-table self-referencing */
+	tmp_pml4[PG_PML4E] = (uint32_t) pml4_new | 0x3;
+
+	return pml4_new;
 }
 
 extern std::shared_ptr<task> current;

@@ -72,6 +72,8 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	int fd = open(0, 0);
 	console_user ucon(fd);
 
+	syscall(33);
+
     ucon << "tsk 1: arg0: " << arg0 << '\n';
 	ucon << "tsk 1: arg1: " << arg1 << '\n';
 
@@ -79,38 +81,21 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	syscall(12);
 
 	/* Open a file on the cd */
-	auto cd_fd = open("boot/../bla/othefile.txt");
-	ucon << "cd_fd: " << cd_fd << '\n';
-	auto len = read(cd_fd, (void*) ata_buf1, sizeof(ata_buf1));
-
 	auto elf_fd = open("test/userbin.");
-	ucon << "elf_fd: " << elf_fd << '\n';
-	size_t elf_size = fsize(elf_fd);
-
-	ucon << "file size: " << elf_size << '\n';
-
-	fmap(elf_fd, 0, 0x1000, elf_size);
-
-	//ucon.write_buf((const char*) 0x1000, len);
-
 	elf64 e(elf_fd);
-	if (!e.load_headers())
+	if (!e.load())
 	{
 		ucon << "Loading elf failed\n";
 		for (;;)
 			;
 	}
 
-	ucon << "e_entry: " << hex_u64(e.ehdr.e_entry) << '\n';
-	
 	/* Jump to the motherfucker */
 	typedef int (*elf_entry_fn)();
 	elf_entry_fn elf_entry = (elf_entry_fn) e.ehdr.e_entry;
 	int returned = elf_entry();
 
 	ucon << "It returned: " << returned << '\n';
-
-	ucon.write_buf((const char*) ata_buf1, len);
 
 	uint8_t abuf[512];
 	
@@ -462,6 +447,13 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 		case 11: // Test shit
 			hda->write((void*) arg0, arg1, arg2);
 			return 0;
+
+		case 33:
+			{
+				auto cloned_table = memory::clone_tables();
+				cr3_set(cloned_table);
+			}
+			break;
 
 		case 12:
 			iso9660_test();

@@ -53,6 +53,7 @@ void frame_alloc_bitmap::reset_range(size_t begin, size_t end)
 	for (auto i = begin; i < end; i++)
 		reset(i);
 }
+
 size_t frame_alloc_bitmap::find_zero()
 {
 	uint64_t j = last_zero;

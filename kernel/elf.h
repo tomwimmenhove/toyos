@@ -8,7 +8,7 @@ struct elf64
 {
 	elf64(int fd);
 
-	bool load_headers();
+	bool load();
 
 	struct __attribute__((packed)) elf64_ehdr
 	{   
