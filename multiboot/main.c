@@ -90,23 +90,23 @@ void map_page(uint64_t virt, uint64_t phys)
 
 	/* Check for level 4 entry in PML4 table */
 	if (!(pml4[pml4e] & 1))
-		pml4[pml4e] = (uint32_t) new_clean_page() | 7;
+		pml4[pml4e] = (uint32_t) new_clean_page() | 0x107;
 
 	/* Check for level 3 entry in PDP table */
 	uint64_t* pdp = (uint64_t*) (uint32_t) (pml4[pml4e] & ~0xfff);
 	if (!(pdp[pdpe] & 1))
-		pdp[pdpe] = (uint32_t) new_clean_page() | 7;
+		pdp[pdpe] = (uint32_t) new_clean_page() | 0x107;
 
 	/* Check for level 2 entry in PD table */
 	uint64_t* pd = (uint64_t*) (uint32_t) (pdp[pdpe] & ~0xfff);
 	if (!(pd[pde] & 1))
-		pd[pde] = (uint32_t) new_clean_page() | 7;
+		pd[pde] = (uint32_t) new_clean_page() | 0x107;
 
 	/* Get the level 1 entry in the PT table */
 	uint64_t* pt = (uint64_t*) (uint32_t) (pd[pde] & ~0xfff);
 
 	/* Set the entry in the page table */
-	pt[pte] = phys | 7;
+	pt[pte] = phys | 0x107;
 }
 
 void map_pages(uint64_t virt, uint64_t phys, uint64_t size)

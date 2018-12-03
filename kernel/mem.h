@@ -51,10 +51,13 @@ template<typename T>
 class temp_page
 {
 public: 
-	temp_page(uint64_t virt, uint64_t phys)
+	temp_page(uint64_t virt, uint64_t phys, bool clean = false)
 		: virt((T*) virt)
 	{
 		memory::map_page((uint64_t) virt, phys);
+		if (clean)
+			for (int i = 0; i < 256; i++)
+				((uint64_t*) virt)[i] = 0;
 	}
 
 	~temp_page() { memory::unmap_page((uint64_t) virt); }

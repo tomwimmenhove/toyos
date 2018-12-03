@@ -157,23 +157,23 @@ void memory::map_page(uint64_t virt, uint64_t phys)
 
 	if (!(pml4[pml4e] & 1))
 	{
-		pml4[pml4e] = (uint64_t) frame_alloc->page() | 7;
+		pml4[pml4e] = (uint64_t) frame_alloc->page() | 0x107;
 		clear_page((void*) pdp);
 	}
 
 	if (!(pdp[pdpe] & 1))
 	{
-		pdp[pdpe] = (uint64_t) frame_alloc->page() | 7;
+		pdp[pdpe] = (uint64_t) frame_alloc->page() | 0x107;
 		clear_page((void*) pd);
 	}
 
 	if (!(pd[pde] & 1))
 	{
-		pd[pde] = (uint64_t) frame_alloc->page() | 7;
+		pd[pde] = (uint64_t) frame_alloc->page() | 0x107;
 		clear_page((void*) pt);
 	}
 
-	pt[pte] = phys | 7;
+	pt[pte] = phys | 0x107;
 
 	invlpg(virt);
 }
@@ -231,13 +231,14 @@ uint64_t memory::clone_tables()
 {
 	uint64_t tmp_virt = 0xffff8ffffffff000llu;
 	uint64_t pml4_new = (uint64_t) frame_alloc->page();
-	temp_page<uint64_t> tmp_pml4(tmp_virt, pml4_new);
-	clear_page((void*) tmp_virt);
+	temp_page<uint64_t> tmp_pml4(tmp_virt, pml4_new, true);
 
 	volatile uint64_t* pml4 = (uint64_t*) (PG_PML4);
 	for (uint64_t i = 0; i < 512; i++) if (pml4[i] & 1)
-	//for (uint64_t i = 0; i < 256; i++) if (pml4[i] & 1)
 	{
+		if (i == PG_PML4E)
+			continue;
+
 		volatile uint64_t* pdp = (uint64_t*) (PG_PDP | (i << 12));
 		for (uint64_t j = 0 ; j < 512; j++) if (pdp[j] & 1)
 		{
@@ -250,27 +251,24 @@ uint64_t memory::clone_tables()
 					if (!(tmp_pml4[i] & 1))
 					{
 						uint64_t new_pg = (uint64_t) frame_alloc->page();
-						temp_page<uint64_t> tmp(tmp_virt + PAGE_SIZE * 1, new_pg);
-						clear_page((void*) (tmp_virt + PAGE_SIZE * 1));
-						tmp_pml4[i] = new_pg | 7;
+						temp_page<uint64_t> tmp(tmp_virt + PAGE_SIZE * 1, new_pg, true);
+						tmp_pml4[i] = new_pg | (pml4[i] & (PAGE_SIZE - 1));
 					}
 
 					temp_page<uint64_t> tmp_pdp(tmp_virt + PAGE_SIZE * 1, tmp_pml4[i] & ~(PAGE_SIZE - 1));
 					if (!(tmp_pdp[j] & 1))
 					{
 						uint64_t new_pg = (uint64_t) frame_alloc->page();
-						temp_page<uint64_t> tmp(tmp_virt + PAGE_SIZE * 2, new_pg);
-						clear_page((void*) (tmp_virt + PAGE_SIZE * 2));
-						tmp_pdp[j] = new_pg | 7;
+						temp_page<uint64_t> tmp(tmp_virt + PAGE_SIZE * 2, new_pg, true);
+						tmp_pdp[j] = new_pg | (pdp[j] & (PAGE_SIZE - 1));
 					}
 
 					temp_page<uint64_t> tmp_pd(tmp_virt + PAGE_SIZE * 2, tmp_pdp[j] & ~(PAGE_SIZE - 1));
 					if (!(tmp_pd[k] & 1))
 					{
 						uint64_t new_pg = (uint64_t) frame_alloc->page();
-						temp_page<uint64_t> tmp(tmp_virt + PAGE_SIZE * 3, new_pg);
-						clear_page((void*) (tmp_virt + PAGE_SIZE * 3));
-						tmp_pd[k] = new_pg | 7;
+						temp_page<uint64_t> tmp(tmp_virt + PAGE_SIZE * 3, new_pg, true);
+						tmp_pd[k] = new_pg | (pd[k] & (PAGE_SIZE - 1));
 					}
 
 					temp_page<uint64_t> tmp_pt(tmp_virt + PAGE_SIZE * 3, tmp_pd[k] & ~(PAGE_SIZE - 1));

@@ -60,6 +60,8 @@ void cpu_init()
 	cr4 |= (1 << 9);	// Set OSFXSR bit (Enable SSE support)
 	cr4 |= (1 << 10);	// Set OSXMMEXCPT bit (Enable unmasked SSE exceptions)
 //	cr4 |= (1 << 18);	// Set OSXSAVE it (saves SSE registers)
+	cr4 |= (1 << 7);	// Set Page Global Enabled
+
 	cr4_set(cr4);
 }
 
