@@ -21,7 +21,7 @@ public:
 	static void unmap_unused();
 	static uint64_t is_mapped(uint64_t virt);
 	static void unmap_page(uint64_t virt);
-	static void map_page(uint64_t virt, uint64_t phys);
+	static void map_page(uint64_t virt, uint64_t phys, unsigned int flags = 0);
 	static uint64_t get_phys(uint64_t virt);
 
 	static inline void invlpg(uint64_t virt) { asm volatile("invlpg (%0)" ::"r" (virt) : "memory"); }

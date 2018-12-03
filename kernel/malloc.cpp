@@ -130,8 +130,12 @@ void mallocator::free(void* p)
 	}
 }
 
-bool mallocator::handle_pg_fault(interrupt_state*, uint64_t addr)
+bool mallocator::handle_pg_fault(interrupt_state* state, uint64_t addr)
 {
+	/* Check if the page was present. If it was, it's not our problem */
+	if (state->err_code & 1)
+		return false;
+
 	/* Map the page if it's our's */
 	if (addr >= virt_start && addr < virt_start + max_size)
 	{

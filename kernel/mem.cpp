@@ -140,7 +140,7 @@ void memory::setup_usage(multiboot_tag_mmap* mb_mmap_tag, uint64_t memtop)
 	clean_page_tables();
 }
 
-void memory::map_page(uint64_t virt, uint64_t phys)
+void memory::map_page(uint64_t virt, uint64_t phys, unsigned int)
 {
 	assert((virt & (PAGE_SIZE - 1)) == 0);
 	assert((phys & (PAGE_SIZE - 1)) == 0);
@@ -286,8 +286,13 @@ uint64_t memory::clone_tables()
 
 extern std::shared_ptr<task> current;
 
-bool memory::handle_pg_fault(interrupt_state*, uint64_t addr)
+bool memory::handle_pg_fault(interrupt_state* state, uint64_t addr)
 {
+	/* Check if the page was present. If it was, it's not our problem */
+	if (state->err_code & 1)
+		return false;
+
+	/* Don't do anything if it's not related to a running task */
 	if (!current)
 		return false;
 
