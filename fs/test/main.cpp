@@ -18,6 +18,7 @@ extern "C" int main()
 
 	syscall(10, (uint64_t) ata_buf1, 0, 512);
 
+	//int c = 0;
 	for (;;)
 	{   
 		syscall(10, (uint64_t) abuf, 0, 512);
@@ -27,6 +28,8 @@ extern "C" int main()
 			if (abuf[i] != ata_buf1[i])
 				printf("ATA: KAPOT\n");
 		}
+
+		//printf("c=%d\n", c++);
 	}
 
 	return 42;

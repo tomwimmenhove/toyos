@@ -160,11 +160,23 @@ bool iso9660::test_name(iso9660_dir_entry* de, int idx, const char* name, size_t
 		return name_len == de->file_id_len && memcmp(name, de->file_id, name_len) == 0;
 	else
 	{
-		auto n = index(de->file_id, ';');
-		assert(n);
-		size_t new_len = n - de->file_id;
+		size_t len;
+		for (len = 0; len < de->file_id_len; len++)
+		{
+			if (de->file_id[len] == ';')
+			{
+				if (!len)
+					return false;
 
-		return new_len == name_len && memcmp(name, de->file_id, new_len) == 0;
+				if (len && de->file_id[len - 1] == '.')
+					if (!--len)
+						return false;
+
+				break;
+			}
+		}
+
+		return (size_t) len == name_len && memcmp(name, de->file_id, len) == 0;
 	}
 }
 

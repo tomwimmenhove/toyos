@@ -72,8 +72,6 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	int fd = open(0, 0);
 	console_user ucon(fd);
 
-//	syscall(33);
-
     ucon << "tsk 1: arg0: " << arg0 << '\n';
 	ucon << "tsk 1: arg1: " << arg1 << '\n';
 
@@ -81,7 +79,7 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	syscall(12);
 
 	/* Open a file on the cd */
-	auto elf_fd = open("test/userbin.");
+	auto elf_fd = open("test/userbin");
 	elf64 e(elf_fd);
 	if (!e.load())
 	{
