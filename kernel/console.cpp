@@ -168,14 +168,17 @@ bool shut_up_hack = false;
 void console_x86::putc(char ch)
 {
 	qemu_out_char(ch);
+	
 	if (shut_up_hack)
 		return;
+
 	/* new line? */
 	if (ch == '\n')
 		pos = (pos + w) - (pos % w);
 
 	if (pos >= w * h)
 	{
+#if 0
 		/* Scroll */
 		for (int i = 0; i < w * h - w; i++)
 			base[i * 2] = base[(i + w) * 2];
@@ -183,6 +186,22 @@ void console_x86::putc(char ch)
 		/* Blank last line */
 		for (int i = 0; i < w; i++)
 			base[(i + w * h - w) * 2] = 0;
+#else
+		auto base64bit = (uint64_t*) base;
+		auto max = (w * h - w) / 4;
+		auto quart_w = w / 4;
+
+		/* Scroll */
+		for (int i = 0; i < max; i++)
+			base64bit[i] = base64bit[i + quart_w];
+
+		uint8_t c = base[w * h - w * 2 - 1];
+		uint64_t c64 = (uint64_t) c << 8 | (uint64_t) c << 24 | (uint64_t) c << 40 | (uint64_t) c << 56;
+
+		/* Blank last line */
+		for (int i = max; i < max +quart_w; i++)
+			base64bit[i] = c64;
+#endif
 		pos = w * h - w;
 	}
 
