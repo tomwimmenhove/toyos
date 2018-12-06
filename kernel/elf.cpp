@@ -36,7 +36,7 @@ bool elf64::load()
 
 		switch(phdr.p_type)
 		{
-			case 0: /* Unised */
+			case 0: /* Unused */
 				break;
 			case 1: /* Loadable segment */
 				if (fmap(fd,

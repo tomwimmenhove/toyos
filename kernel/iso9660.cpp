@@ -35,11 +35,6 @@ size_t iso9660_io_handle::seek(size_t p)
 	return p;
 }
 
-bool iso9660_io_handle::close()
-{
-	return true;
-}
-
 /* ------------------------------------------------------------------------- */
 
 iso9660::iso9660(std::shared_ptr<disk_block_io> device)

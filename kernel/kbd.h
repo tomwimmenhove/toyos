@@ -13,8 +13,6 @@ struct io_tty : public io_handle
 	ssize_t write(void* buf, size_t len) override;
 	size_t seek(size_t) override { return -1; }
 	size_t size() override { return 0; }
-
-	bool close() override { return true; }
 };
 
 struct driver_tty : public driver

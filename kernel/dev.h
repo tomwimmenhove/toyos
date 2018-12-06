@@ -13,7 +13,9 @@ struct io_handle
 	virtual ssize_t write(void* buf, size_t len) = 0;
 	virtual size_t seek(size_t pos) = 0;
 	virtual size_t size() = 0;
-	virtual bool close() = 0;
+
+	virtual ~io_handle()
+	{ }
 };
 
 struct driver

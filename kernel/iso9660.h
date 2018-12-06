@@ -8,6 +8,7 @@
 
 #include "dev.h"
 #include "disk.h"
+#include "debug.h"
 
 struct __attribute__((packed)) iso9660_dir_entry
 {
@@ -104,7 +105,8 @@ struct iso9660_io_handle : public io_handle
 	ssize_t write(void*, size_t) override;
 	size_t seek(size_t pos) override;
 	inline size_t size() override { return fsize; }
-	bool close() override;
+
+	~iso9660_io_handle() override { con << "File was closed"; }
 
 private:
 	std::shared_ptr<disk_block_io> device;

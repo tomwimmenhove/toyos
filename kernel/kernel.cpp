@@ -111,15 +111,6 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	*stack_tst = 0;
 	uint64_t countah = 0;
 
-	if (0) for (;;)
-	{
-		(*stack_tst)++;
-		countah++;
-
-		if (countah != (*stack_tst))
-			ucon << "1: Per-process stack is fucked\n";
-	}
-
 	for (;;)
 	{
 		syscall(10, (uint64_t) abuf, 0, 512);
@@ -156,12 +147,6 @@ void k_test_user2(uint64_t arg0, uint64_t arg1)
 
 	volatile uint64_t* volatile stack_tst = (uint64_t*) (0x800000000000 - 16);
 	*stack_tst = 42;
-
-	if (0) for (;;)
-	{
-		if (42 != (*stack_tst))
-			ucon << "2: Per-process stack is fucked\n";
-	}
 
 	char buf[100];
 	for (;;)
@@ -383,13 +368,9 @@ bool kclose(int fd)
 	if ((size_t) fd >= current->io_handles.size() || !current->io_handles[fd])
 		return -1;
 
-	if (current->io_handles[fd]->close())
-	{
-		current->io_handles[fd] = nullptr;
-		return true;
-	}
-
-	return false;
+	current->io_handles[fd] = nullptr;
+	
+	return true;
 }
 
 size_t kread(int fd, void *buf, size_t len)
