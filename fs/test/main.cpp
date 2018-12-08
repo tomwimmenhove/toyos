@@ -19,7 +19,8 @@ extern "C" int main()
 	syscall(10, (uint64_t) ata_buf1, 0, 512);
 
 	//int c = 0;
-	for (;;)
+	for (int i = 0; i < 1000; i++)
+	//for(;;)
 	{   
 		syscall(10, (uint64_t) abuf, 0, 512);
 

@@ -1,6 +1,11 @@
 .global _start
 .type _start, @function
 _start:
+	push %rbp
+	mov %rsp, %rbp
 	mov $0x800000000000, %rsp
-	jmp main
+	call main
+	mov %rbp, %rsp
+	pop %rbp
+	ret
 
