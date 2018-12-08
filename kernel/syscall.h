@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+//#include "syscalls.h"
+
 extern "C" size_t __syscall1(uint64_t a);
 extern "C" size_t __syscall2(uint64_t a, uint64_t b);
 extern "C" size_t __syscall3(uint64_t a, uint64_t b, uint64_t c);

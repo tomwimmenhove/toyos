@@ -76,7 +76,7 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	ucon << "tsk 1: arg1: " << arg1 << '\n';
 
 	/* Hacky-as-fuck cd init thing */
-	syscall(12);
+	syscall((int) syscall_idx::mount_cd );
 
 	/* Open a file on the cd */
 	auto elf_fd = open("test/userbin");
@@ -97,13 +97,13 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 
 	uint8_t abuf[512];
 	
-	syscall(10, (uint64_t) abuf, 0x180, 6);
+	syscall((int) syscall_idx::debug_test_read2, (uint64_t) abuf, 0x180, 6);
 	ucon << "partial: \"" << (const char*) abuf << "\"\n";
 
 	/* Test partial write */
 	abuf[0] = 42;
-	syscall(11, (uint64_t) abuf, 2, 1);
-	syscall(10, (uint64_t) ata_buf1, 0, 512);
+	syscall((int) syscall_idx::debug_test_write, (uint64_t) abuf, 2, 1);
+	syscall((int) syscall_idx::debug_test_read2, (uint64_t) ata_buf1, 0, 512);
 
 	volatile uint64_t* volatile stack_tst = (uint64_t*) (0x800000000000 - 16);
 	*stack_tst = 0;
@@ -111,7 +111,7 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 
 	for (;;)
 	{
-		syscall(10, (uint64_t) abuf, 0, 512);
+		syscall((int) syscall_idx::debug_test_read2, (uint64_t) abuf, 0, 512);
 
 		if (memcmp(ata_buf1, abuf, 512) != 0)
 		{
@@ -442,68 +442,66 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 					con.putc(*s++);
 				break;
 			}
-		case 1:
+		case syscall_idx::debug_outc:
 			con.putc(arg0);
 			break;
-		case 5:
+		case syscall_idx::yield:
 			schedule();
 			break;
 
-		case 6:
+		case syscall_idx::stop:
 			current->running = false;
 			schedule();
 			break;
 
-		case 7:
+		case syscall_idx::debug_test_timer:
 			current->wait_for = [now]() { return (jiffies - now) >= 18; };
 			schedule();
 			current->wait_for = nullptr;
 			break;
 
-		case 9: // Test shit
+		case syscall_idx::debug_test_read1: // Test shit
 			ata0->read((void*) arg0, arg1, arg2);
 			return 0;
 
-		case 10: // Test shit
+		case syscall_idx::debug_test_read2: // Test shit
 			//ata0->read((void*) arg0, arg1, arg2);
 			hda->read((void*) arg0, arg1, arg2);
 			return 0;
-			//ata_test();
-			break;
 		
-		case 11: // Test shit
+		case syscall_idx::debug_test_write: // Test shit
 			hda->write((void*) arg0, arg1, arg2);
 			return 0;
 
-		case 33:
+		case syscall_idx::debug_clone_tlb:
 			{
 				auto cloned_table = memory::clone_tables();
 				cr3_set(cloned_table);
 			}
 			break;
 
-		case 12:
+		case syscall_idx::mount_cd:
 			iso9660_test();
 			return 0;
 
-		case 0x0d:
+			case syscall_idx::open_file:
 			return kopen((const char*) arg0);
-		case 0x10:
+		case syscall_idx::open_dev:
 			return kopen(arg0, arg1);
-		case 0x11:
+		case syscall_idx::close:
 			return kclose(arg0);
-		case 0x13:
+		case syscall_idx::read:
 			return kread(arg0, (void*) arg1, arg2);
-		case 0x14:
+		case syscall_idx::write:
 			return kwrite(arg0, (void*) arg1, arg2);
-		case 0x17:
+		case syscall_idx::seek:
 			return kseek(arg0, arg1);
-		case 0x16:
+		case syscall_idx::fsize:
 			return kfsize(arg0);
 
-		case 0x15:
+		case syscall_idx::fmap:
 			return kfmap(arg0, arg1, arg2, arg3);
-		case 0x18:
+		case syscall_idx::funmap:
 			return kfunmap(arg0, arg1);
 		default:
 			panic("Invalid system call");
