@@ -62,7 +62,7 @@ void interrupts::handle(uint64_t irq_num, interrupt_state* state)
 	if (!drvs.empty())
 	{
 		/* Allow nesting for higher-priority interrupts */
-		pic_sys.sti();
+		sti();
 
 		for (auto& drv : drvs)
 		{
@@ -71,7 +71,7 @@ void interrupts::handle(uint64_t irq_num, interrupt_state* state)
 				reschedule = true;
 		}
 
-		pic_sys.cli();
+		cli();
 	}
 	else
 		con << "Interrupt " << irq_num << " has no handlers\n";

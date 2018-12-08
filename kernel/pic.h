@@ -55,7 +55,7 @@ private:
 	}
 };
 
-struct at_pic_sys : public irq_x86
+struct at_pic_sys : public irq
 {
 	void disable(uint8_t intr)
 	{

@@ -54,6 +54,34 @@ struct interrupts
 	static void handle(uint64_t irq_num, interrupt_state* state);
 	static void do_reschedule();
 
+	static inline uint64_t save_flags()
+	{
+		uint64_t flags;
+		asm volatile("pushf\n"
+					 "pop %0\n"
+					 : "=r" (flags));
+
+		return flags;
+	}
+
+	static inline void restore_flags(uint64_t flags)
+	{
+		asm volatile("push %0\n"
+					 "popf\n"
+					 : : "r" (flags));
+	}
+
+	static inline void sti() { asm volatile("sti"); }
+	static inline void cli() { asm volatile("cli"); }
+
+	static inline uint64_t cli_store()
+	{
+		uint64_t flags = save_flags();
+		cli();
+
+		return flags;
+	}
+
 private:
 	static std::forward_list<intr_driver*> drivers[256];
 	static int nest;

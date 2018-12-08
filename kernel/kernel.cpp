@@ -309,7 +309,7 @@ void k_test_init()
 	hda = std::make_shared<ata_disk>(ata0, false);
 
 	/* Enable global interrupts */
-	pic_sys.sti();
+	interrupts::sti();
 
 	/* Start the idle task. Since we will never return from this, we can safely set the
 	 * stack pointer to the top of our current stack frame. */
