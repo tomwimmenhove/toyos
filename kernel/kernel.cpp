@@ -76,7 +76,7 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 	ucon << "tsk 1: arg1: " << arg1 << '\n';
 
 	/* Hacky-as-fuck cd init thing */
-	syscall((int) syscall_idx::mount_cd );
+	syscall(syscall_idx::mount_cd );
 
 	/* Open a file on the cd */
 	auto elf_fd = open("test/userbin");
@@ -97,13 +97,13 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 
 	uint8_t abuf[512];
 	
-	syscall((int) syscall_idx::debug_test_read2, (uint64_t) abuf, 0x180, 6);
+	syscall(syscall_idx::debug_test_read2, (uint64_t) abuf, 0x180, 6);
 	ucon << "partial: \"" << (const char*) abuf << "\"\n";
 
 	/* Test partial write */
 	abuf[0] = 42;
-	syscall((int) syscall_idx::debug_test_write, (uint64_t) abuf, 2, 1);
-	syscall((int) syscall_idx::debug_test_read2, (uint64_t) ata_buf1, 0, 512);
+	syscall(syscall_idx::debug_test_write, (uint64_t) abuf, 2, 1);
+	syscall(syscall_idx::debug_test_read2, (uint64_t) ata_buf1, 0, 512);
 
 	volatile uint64_t* volatile stack_tst = (uint64_t*) (0x800000000000 - 16);
 	*stack_tst = 0;
@@ -111,7 +111,7 @@ extern "C" void k_test_user1(uint64_t arg0, uint64_t arg1)
 
 	for (;;)
 	{
-		syscall((int) syscall_idx::debug_test_read2, (uint64_t) abuf, 0, 512);
+		syscall(syscall_idx::debug_test_read2, (uint64_t) abuf, 0, 512);
 
 		if (memcmp(ata_buf1, abuf, 512) != 0)
 		{

@@ -16,7 +16,7 @@ extern "C" int main()
 	uint8_t abuf[512];
 	uint8_t ata_buf1[512];
 
-	syscall(10, (uint64_t) ata_buf1, 0, 512);
+	syscall(syscall_idx::debug_test_read2, (uint64_t) ata_buf1, 0, 512);
 
 	const char* fname = "bla/othefile.txt";
 	int fd = open(fname);
@@ -42,7 +42,7 @@ extern "C" int main()
 	for (int i = 0; i < 1000; i++)
 	//for(;;)
 	{   
-		syscall(10, (uint64_t) abuf, 0, 512);
+		syscall(syscall_idx::debug_test_read2, (uint64_t) abuf, 0, 512);
 
 		for (int i = 0; i < 512; i++)
 		{
