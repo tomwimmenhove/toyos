@@ -41,6 +41,7 @@ private:
 struct mapped_io_handle
 {   
 	std::shared_ptr<io_handle> handle;
+	int fd;
 	uint64_t file_offs;
 
 	uint64_t addr;

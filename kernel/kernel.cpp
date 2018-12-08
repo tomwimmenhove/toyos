@@ -412,8 +412,17 @@ size_t kfmap(int fd, uint64_t file_offs, uint64_t addr, uint64_t len)
 	if ((size_t) fd >= current->io_handles.size() || !current->io_handles[fd])
 		return -1;
 
-	mapped_io_handle mih { current->io_handles[fd], file_offs, addr, len };
+	mapped_io_handle mih { current->io_handles[fd], fd, file_offs, addr, len };
 	current->mapped_io_handles.push_front(mih);
+
+	return 0;
+}
+
+size_t kfunmap(int fd, uint64_t addr)
+{
+	// XXX: FIXME. Always returns success. c++20 remove_if returns number of elements removed.
+
+	current->mapped_io_handles.remove_if([fd, addr](mapped_io_handle mih) { return mih.fd == fd && mih.addr == addr; });
 
 	return 0;
 }
@@ -423,9 +432,9 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 	auto now = jiffies;
 	(void) arg0, (void) arg1, (void) arg2, (void) arg3, (void) arg4;
 
-	switch(syscall_no)
+	switch((syscall_idx) syscall_no)
 	{
-		case 0:
+		case syscall_idx::debug_outs:
 			{
 				const unsigned char* s = (const unsigned char*) arg0;
 				auto len = arg1;
@@ -494,6 +503,8 @@ extern "C" size_t syscall_handler(uint64_t syscall_no, uint64_t arg0, uint64_t a
 
 		case 0x15:
 			return kfmap(arg0, arg1, arg2, arg3);
+		case 0x18:
+			return kfunmap(arg0, arg1);
 		default:
 			panic("Invalid system call");
 	}

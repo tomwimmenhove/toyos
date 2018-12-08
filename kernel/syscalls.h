@@ -7,6 +7,12 @@
 
 #include "syscall.h"
 
+enum class syscall_idx
+{
+	debug_outs,
+	debug_outc,
+};
+
 extern "C"
 {
 	inline int close(int arg0) { return (bool) syscall(0x11, arg0); }
@@ -24,6 +30,11 @@ inline size_t seek(int fd, size_t pos) { return syscall(0x17, fd, pos); }
 inline ssize_t fmap(int fd, uint64_t file_offs, uint64_t addr, uint64_t len)
 {
 	return syscall(0x15, fd, file_offs, addr, len);
+}
+
+inline ssize_t funmap(int fd, uint64_t addr)
+{
+	return syscall(0x18, fd, addr);
 }
 
 #endif /* SYSCALLS_H */

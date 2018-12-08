@@ -18,6 +18,26 @@ extern "C" int main()
 
 	syscall(10, (uint64_t) ata_buf1, 0, 512);
 
+	const char* fname = "bla/othefile.txt";
+	int fd = open(fname);
+	printf("fd: %d\n", fd);
+	ssize_t len = fsize(fd);
+	printf("len: %d\n", len);
+#if 1
+	char* d = (char*) 0x20000;
+	int r = fmap(fd, 0, (uint64_t) d, len);
+	printf("map result: %d\n", r);
+	write(0, d, len);
+#endif
+
+	printf("before close\n");
+	close(fd);
+#if 1
+	printf("before unmap\n");
+	funmap(fd, (uint64_t) d);
+#endif
+	printf("all closed\n");
+
 	//int c = 0;
 	for (int i = 0; i < 1000; i++)
 	//for(;;)

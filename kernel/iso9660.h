@@ -106,7 +106,7 @@ struct iso9660_io_handle : public io_handle
 	size_t seek(size_t pos) override;
 	inline size_t size() override { return fsize; }
 
-	~iso9660_io_handle() override { con << "File was closed"; }
+	~iso9660_io_handle() override { con << "File was closed\n"; }
 
 private:
 	std::shared_ptr<disk_block_io> device;
